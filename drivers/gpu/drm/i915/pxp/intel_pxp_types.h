@@ -82,6 +82,13 @@ struct intel_pxp {
 	/* @dev_link: Enforce module relationship for power management ordering. */
 	struct device_link *dev_link;
 	/**
+	 * @mei_pxp_last_msg_interrupted: To catch and drop stale responses
+	 * from previuosly interrupted send-msg to mei before issuing new
+	 * send-recv.
+	 */
+	bool mei_pxp_last_msg_interrupted;
+
+	/**
 	 * @pxp_component_added: track if the pxp component has been added.
 	 * Set and cleared in tee init and fini functions respectively.
 	 */
