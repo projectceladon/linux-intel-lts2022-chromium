@@ -22,8 +22,10 @@
 		mmc0 = &mmc0;
 	};
 
+	/* chosen */
 	chosen: chosen {
 		stdout-path = "serial0:115200n8";
+		kaslr-seed = <0 0>;
 	};
 
 	memory@40000000 {
@@ -46,6 +48,10 @@
 
 &auxadc {
 	status = "okay";
+};
+
+&cam_vcore {
+	domain-supply = <&mt6359_vproc1_buck_reg>;
 };
 
 &i2c0 {
@@ -97,6 +103,10 @@
 	status = "okay";
 };
 
+&img_vcore {
+	domain-supply = <&mt6359_vproc1_buck_reg>;
+};
+
 &mmc0 {
 	bus-width = <8>;
 	hs400-ds-delay = <0x1481b>;
@@ -117,8 +127,15 @@
 	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc0_default_pins>;
 	pinctrl-1 = <&mmc0_uhs_pins>;
-
 	status = "okay";
+};
+
+&mt6359_vbbck_ldo_reg {
+	regulator-always-on;
+};
+
+&mt6359_vcn33_2_bt_ldo_reg {
+	regulator-always-on;
 };
 
 &mt6359_vcore_buck_reg {
@@ -137,6 +154,10 @@
 	regulator-always-on;
 };
 
+&mt6359_vufs_ldo_reg {
+	regulator-always-on;
+};
+
 &nor_flash {
 	pinctrl-names = "default";
 	pinctrl-0 = <&nor_pins_default>;
@@ -152,6 +173,8 @@
 };
 
 &pio {
+	pinctrl-names = "default";
+
 	adsp_uart_pins: adsp-uart-pins {
 		pins-tx-rx {
 			pinmux = <PINMUX_GPIO35__FUNC_O_ADSP_UTXD0>,
@@ -260,9 +283,14 @@
 			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
 		};
 
-		pins-clk-ds {
-			pinmux = <PINMUX_GPIO157__FUNC_B1_MSDC0_CLK>,
-				 <PINMUX_GPIO162__FUNC_B0_MSDC0_DSL>;
+		pins-clk {
+			pinmux = <PINMUX_GPIO157__FUNC_B1_MSDC0_CLK>;
+			drive-strength = <8>;
+			bias-pull-down = <MTK_PUPD_SET_R1R0_10>;
+		};
+
+		pins-ds {
+			pinmux = <PINMUX_GPIO162__FUNC_B0_MSDC0_DSL>;
 			drive-strength = <8>;
 			bias-pull-down = <MTK_PUPD_SET_R1R0_10>;
 		};
