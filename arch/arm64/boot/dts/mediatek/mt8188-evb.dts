@@ -318,6 +318,14 @@
 		};
 	};
 
+	scp_pins: scp {
+		pins_scp_vreq {
+			pinmux = <PINMUX_GPIO98__FUNC_O_SCP_VREQ_VAO>;
+			bias-disable;
+			input-enable;
+		};
+	};
+
 	spi0_pins: spi0-pins {
 		pins-spi {
 			pinmux = <PINMUX_GPIO69__FUNC_O_SPIM0_CSB>,
@@ -361,7 +369,15 @@
 	interrupts-extended = <&pio 222 IRQ_TYPE_LEVEL_HIGH>;
 };
 
+&mt6359_vgpu11_sshub_buck_reg {
+	regulator-always-on;
+	regulator-min-microvolt = <550000>;
+	regulator-max-microvolt = <550000>;
+};
+
 &scp {
+	pinctrl-names = "default";
+	pinctrl-0 = <&scp_pins>;
 	memory-region = <&scp_mem_reserved>;
 	status = "okay";
 };
