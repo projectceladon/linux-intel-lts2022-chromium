@@ -180,6 +180,12 @@
 			no-map;
 			reg = <0 0x60F00000 0 0x100000>;
 		};
+
+		scp_dual_mem_reserved: scp-dual-mem-region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x70000000 0 0xd000000>;
+			no-map;
+		};
 	};
 
 	usb_p1_vbus: regulator-usb-p1-vbus {
@@ -1237,6 +1243,13 @@
 	status = "okay";
 
 	mediatek,scp-core = <&scp_dual 0>;
+};
+
+&scp_dual {
+	status = "okay";
+	memory-region = <&scp_dual_mem_reserved>;
+	mediatek,scp-core = <&scp 1>;
+	firmware-name = "mediatek/mt8188/scp-dual.img";
 };
 
 &sound {

@@ -1339,6 +1339,15 @@
 			interrupts = <GIC_SPI 462 IRQ_TYPE_LEVEL_HIGH 0>;
 		};
 
+		scp_dual: scp-dual@105af000 {
+			compatible = "mediatek,mt8195-scp-dual";
+			reg = <0 0x105e0000 0 0x1f000>,
+			      <0 0x10720000 0 0xe0000>;
+			reg-names = "sram", "cfg";
+			interrupts = <GIC_SPI 463 IRQ_TYPE_LEVEL_HIGH 0>;
+			status = "disabled";
+		};
+
 		afe: afe@10b10000 {
 			compatible = "mediatek,mt8188-afe";
 			mediatek,topckgen = <&topckgen>;

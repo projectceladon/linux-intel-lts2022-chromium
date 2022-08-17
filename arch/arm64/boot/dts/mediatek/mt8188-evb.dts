@@ -43,6 +43,12 @@
 			reg = <0 0x50000000 0 0x2900000>;
 			no-map;
 		};
+
+		scp_dual_mem_reserved: scp-dual-mem-region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x70000000 0 0xd000000>;
+			no-map;
+		};
 	};
 };
 
@@ -382,6 +388,13 @@
 	status = "okay";
 
 	mediatek,scp-core = <&scp_dual 0>;
+};
+
+&scp_dual {
+	status = "okay";
+	memory-region = <&scp_dual_mem_reserved>;
+	mediatek,scp-core = <&scp 1>;
+	firmware-name = "scp-dual.img";
 };
 
 &spi0 {
