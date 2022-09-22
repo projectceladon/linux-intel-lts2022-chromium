@@ -914,17 +914,6 @@ static inline bool tb_switch_is_tiger_lake(const struct tb_switch *sw)
 }
 
 /**
- * tb_switch_is_usb4() - Is the switch USB4 compliant
- * @sw: Switch to check
- *
- * Returns true if the @sw is USB4 compliant router, false otherwise.
- */
-static inline bool tb_switch_is_usb4(const struct tb_switch *sw)
-{
-	return sw->config.thunderbolt_version == USB4_VERSION_1_0;
-}
-
-/**
  * tb_switch_is_icm() - Is the switch handled by ICM firmware
  * @sw: Switch to check
  *
@@ -997,6 +986,29 @@ static inline bool tb_switch_is_clx_enabled(const struct tb_switch *sw,
 					    enum tb_clx clx)
 {
 	return sw->clx == clx;
+}
+
+/**
+ * usb4_switch_version() - Returns USB4 version of the router
+ * @sw: Router to check
+ *
+ * Returns major version of USB4 router (%1 for v1, %2 for v2 and so
+ * on). Can be called to pre-USB4 router too and in that case returns %0.
+ */
+static inline unsigned int usb4_switch_version(const struct tb_switch *sw)
+{
+	return FIELD_GET(USB4_VERSION_MAJOR_MASK, sw->config.thunderbolt_version);
+}
+
+/**
+ * tb_switch_is_usb4() - Is the switch USB4 compliant
+ * @sw: Switch to check
+ *
+ * Returns true if the @sw is USB4 compliant router, false otherwise.
+ */
+static inline bool tb_switch_is_usb4(const struct tb_switch *sw)
+{
+	return usb4_switch_version(sw) > 0;
 }
 
 /**
