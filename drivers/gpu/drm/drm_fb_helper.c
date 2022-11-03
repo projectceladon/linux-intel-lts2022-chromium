@@ -30,9 +30,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/console.h>
-#include <linux/pci.h>
 #include <linux/sysrq.h>
-#include <linux/vga_switcheroo.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_drv.h>
@@ -91,13 +89,11 @@ static DEFINE_MUTEX(kernel_fb_helper_lock);
  * It will automatically set up deferred I/O if the driver requires a shadow
  * buffer.
  *
- * Existing fbdev implementations should restore the fbdev console by using
+ * At runtime drivers should restore the fbdev console by using
  * drm_fb_helper_lastclose() as their &drm_driver.lastclose callback.
  * They should also notify the fb helper code from updates to the output
  * configuration by using drm_fb_helper_output_poll_changed() as their
- * &drm_mode_config_funcs.output_poll_changed callback. New implementations
- * of fbdev should be build on top of struct &drm_client_funcs, which handles
- * this automatically. Setting the old callbacks should be avoided.
+ * &drm_mode_config_funcs.output_poll_changed callback.
  *
  * For suspend/resume consider using drm_mode_config_helper_suspend() and
  * drm_mode_config_helper_resume() which takes care of fbdev as well.
@@ -369,8 +365,9 @@ static void drm_fb_helper_resume_worker(struct work_struct *work)
 	console_unlock();
 }
 
-static void drm_fb_helper_fb_dirty(struct drm_fb_helper *helper)
+static void drm_fb_helper_damage_work(struct work_struct *work)
 {
+	struct drm_fb_helper *helper = container_of(work, struct drm_fb_helper, damage_work);
 	struct drm_device *dev = helper->dev;
 	struct drm_clip_rect *clip = &helper->damage_clip;
 	struct drm_clip_rect clip_copy;
@@ -403,13 +400,6 @@ err:
 	clip->x2 = max_t(u32, clip->x2, clip_copy.x2);
 	clip->y2 = max_t(u32, clip->y2, clip_copy.y2);
 	spin_unlock_irqrestore(&helper->damage_lock, flags);
-}
-
-static void drm_fb_helper_damage_work(struct work_struct *work)
-{
-	struct drm_fb_helper *helper = container_of(work, struct drm_fb_helper, damage_work);
-
-	drm_fb_helper_fb_dirty(helper);
 }
 
 /**
@@ -584,8 +574,8 @@ void drm_fb_helper_fini(struct drm_fb_helper *fb_helper)
 }
 EXPORT_SYMBOL(drm_fb_helper_fini);
 
-static void drm_fb_helper_add_damage_clip(struct drm_fb_helper *helper, u32 x, u32 y,
-					  u32 width, u32 height)
+static void drm_fb_helper_damage(struct drm_fb_helper *helper, u32 x, u32 y,
+				 u32 width, u32 height)
 {
 	struct drm_clip_rect *clip = &helper->damage_clip;
 	unsigned long flags;
@@ -596,12 +586,6 @@ static void drm_fb_helper_add_damage_clip(struct drm_fb_helper *helper, u32 x, u
 	clip->x2 = max_t(u32, clip->x2, x + width);
 	clip->y2 = max_t(u32, clip->y2, y + height);
 	spin_unlock_irqrestore(&helper->damage_lock, flags);
-}
-
-static void drm_fb_helper_damage(struct drm_fb_helper *helper, u32 x, u32 y,
-				 u32 width, u32 height)
-{
-	drm_fb_helper_add_damage_clip(helper, x, y, width, height);
 
 	schedule_work(&helper->damage_work);
 }
@@ -614,27 +598,19 @@ static void drm_fb_helper_damage(struct drm_fb_helper *helper, u32 x, u32 y,
 static void drm_fb_helper_memory_range_to_clip(struct fb_info *info, off_t off, size_t len,
 					       struct drm_rect *clip)
 {
-	u32 line_length = info->fix.line_length;
-	u32 fb_height = info->var.yres;
 	off_t end = off + len;
 	u32 x1 = 0;
-	u32 y1 = off / line_length;
+	u32 y1 = off / info->fix.line_length;
 	u32 x2 = info->var.xres;
-	u32 y2 = DIV_ROUND_UP(end, line_length);
-
-	/* Don't allow any of them beyond the bottom bound of display area */
-	if (y1 > fb_height)
-		y1 = fb_height;
-	if (y2 > fb_height)
-		y2 = fb_height;
+	u32 y2 = DIV_ROUND_UP(end, info->fix.line_length);
 
 	if ((y2 - y1) == 1) {
 		/*
 		 * We've only written to a single scanline. Try to reduce
 		 * the number of horizontal pixels that need an update.
 		 */
-		off_t bit_off = (off % line_length) * 8;
-		off_t bit_end = (end % line_length) * 8;
+		off_t bit_off = (off % info->fix.line_length) * 8;
+		off_t bit_end = (end % info->fix.line_length) * 8;
 
 		x1 = bit_off / info->var.bits_per_pixel;
 		x2 = DIV_ROUND_UP(bit_end, info->var.bits_per_pixel);
@@ -666,15 +642,17 @@ void drm_fb_helper_deferred_io(struct fb_info *info, struct list_head *pagerefli
 		min_off = min(min_off, start);
 		max_off = max(max_off, end);
 	}
+	if (min_off >= max_off)
+		return;
 
-	/*
-	 * As we can only track pages, we might reach beyond the end
-	 * of the screen and account for non-existing scanlines. Hence,
-	 * keep the covered memory area within the screen buffer.
-	 */
-	max_off = min(max_off, info->screen_size);
+	if (helper->funcs->fb_dirty) {
+		/*
+		 * As we can only track pages, we might reach beyond the end
+		 * of the screen and account for non-existing scanlines. Hence,
+		 * keep the covered memory area within the screen buffer.
+		 */
+		max_off = min(max_off, info->screen_size);
 
-	if (min_off < max_off) {
 		drm_fb_helper_memory_range_to_clip(info, min_off, max_off - min_off, &damage_area);
 		drm_fb_helper_damage(helper, damage_area.x1, damage_area.y1,
 				     drm_rect_width(&damage_area),
@@ -1566,9 +1544,6 @@ int drm_fb_helper_check_var(struct fb_var_screeninfo *var,
 		return -EINVAL;
 	}
 
-	var->xres_virtual = fb->width;
-	var->yres_virtual = fb->height;
-
 	/*
 	 * Workaround for SDL 1.2, which is known to be setting all pixel format
 	 * fields values to zero in some cases. We treat this situation as a
@@ -1922,11 +1897,6 @@ static int drm_fb_helper_single_fb_probe(struct drm_fb_helper *fb_helper,
 		return ret;
 
 	strcpy(fb_helper->fb->comm, "[fbcon]");
-
-	/* Set the fb info for vgaswitcheroo clients. Does nothing otherwise. */
-	if (dev_is_pci(dev->dev))
-		vga_switcheroo_client_fb_set(to_pci_dev(dev->dev), fb_helper->info);
-
 	return 0;
 }
 
