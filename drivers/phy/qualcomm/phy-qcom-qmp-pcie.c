@@ -1317,7 +1317,7 @@ static const struct qmp_phy_init_tbl sm8450_qmp_gen4x2_pcie_ep_pcs_misc_tbl[] = 
 	QMP_PHY_INIT_CFG(QPHY_V5_20_PCS_PCIE_OSC_DTCT_MODE2_CONFIG5, 0x08),
 };
 
-struct qmp_phy_cfg_tables {
+struct qmp_phy_cfg_tbls {
 	const struct qmp_phy_init_tbl *serdes;
 	int serdes_num;
 	const struct qmp_phy_init_tbl *tx;
@@ -1335,7 +1335,7 @@ struct qmp_phy_cfg {
 	int lanes;
 
 	/* Main init sequence for PHY blocks - serdes, tx, rx, pcs */
-	const struct qmp_phy_cfg_tables tables;
+	const struct qmp_phy_cfg_tbls tbls;
 	/*
 	 * Additional init sequences for PHY blocks, providing additional
 	 * register programming. They are used for providing separate sequences
@@ -1343,8 +1343,8 @@ struct qmp_phy_cfg {
 	 *
 	 * If EP mode is not supported, both tables can be left unset.
 	 */
-	const struct qmp_phy_cfg_tables *tables_rc;
-	const struct qmp_phy_cfg_tables *tables_ep;
+	const struct qmp_phy_cfg_tbls *tbls_rc;
+	const struct qmp_phy_cfg_tbls *tbls_ep;
 
 	/* clock ids to be requested */
 	const char * const *clk_list;
@@ -1446,7 +1446,7 @@ static const char * const sdm845_pciephy_reset_l[] = {
 static const struct qmp_phy_cfg ipq8074_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= ipq8074_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(ipq8074_pcie_serdes_tbl),
 		.tx		= ipq8074_pcie_tx_tbl,
@@ -1471,7 +1471,7 @@ static const struct qmp_phy_cfg ipq8074_pciephy_cfg = {
 static const struct qmp_phy_cfg ipq8074_pciephy_gen3_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= ipq8074_pcie_gen3_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(ipq8074_pcie_gen3_serdes_tbl),
 		.tx		= ipq8074_pcie_gen3_tx_tbl,
@@ -1500,7 +1500,7 @@ static const struct qmp_phy_cfg ipq8074_pciephy_gen3_cfg = {
 static const struct qmp_phy_cfg ipq6018_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= ipq6018_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(ipq6018_pcie_serdes_tbl),
 		.tx		= ipq6018_pcie_tx_tbl,
@@ -1527,7 +1527,7 @@ static const struct qmp_phy_cfg ipq6018_pciephy_cfg = {
 static const struct qmp_phy_cfg sdm845_qmp_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sdm845_qmp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sdm845_qmp_pcie_serdes_tbl),
 		.tx		= sdm845_qmp_pcie_tx_tbl,
@@ -1554,7 +1554,7 @@ static const struct qmp_phy_cfg sdm845_qmp_pciephy_cfg = {
 static const struct qmp_phy_cfg sdm845_qhp_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sdm845_qhp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sdm845_qhp_pcie_serdes_tbl),
 		.tx		= sdm845_qhp_pcie_tx_tbl,
@@ -1579,7 +1579,7 @@ static const struct qmp_phy_cfg sdm845_qhp_pciephy_cfg = {
 static const struct qmp_phy_cfg sm8250_qmp_gen3x1_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sm8250_qmp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8250_qmp_pcie_serdes_tbl),
 		.tx		= sm8250_qmp_pcie_tx_tbl,
@@ -1591,7 +1591,7 @@ static const struct qmp_phy_cfg sm8250_qmp_gen3x1_pciephy_cfg = {
 		.pcs_misc	= sm8250_qmp_pcie_pcs_misc_tbl,
 		.pcs_misc_num	= ARRAY_SIZE(sm8250_qmp_pcie_pcs_misc_tbl),
 	},
-	.tables_rc = &(const struct qmp_phy_cfg_tables) {
+	.tbls_rc = &(const struct qmp_phy_cfg_tbls) {
 		.serdes		= sm8250_qmp_gen3x1_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8250_qmp_gen3x1_pcie_serdes_tbl),
 		.rx		= sm8250_qmp_gen3x1_pcie_rx_tbl,
@@ -1616,7 +1616,7 @@ static const struct qmp_phy_cfg sm8250_qmp_gen3x1_pciephy_cfg = {
 static const struct qmp_phy_cfg sm8250_qmp_gen3x2_pciephy_cfg = {
 	.lanes			= 2,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sm8250_qmp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8250_qmp_pcie_serdes_tbl),
 		.tx		= sm8250_qmp_pcie_tx_tbl,
@@ -1628,7 +1628,7 @@ static const struct qmp_phy_cfg sm8250_qmp_gen3x2_pciephy_cfg = {
 		.pcs_misc	= sm8250_qmp_pcie_pcs_misc_tbl,
 		.pcs_misc_num	= ARRAY_SIZE(sm8250_qmp_pcie_pcs_misc_tbl),
 	},
-	.tables_rc = &(const struct qmp_phy_cfg_tables) {
+	.tbls_rc = &(const struct qmp_phy_cfg_tbls) {
 		.tx		= sm8250_qmp_gen3x2_pcie_tx_tbl,
 		.tx_num		= ARRAY_SIZE(sm8250_qmp_gen3x2_pcie_tx_tbl),
 		.rx		= sm8250_qmp_gen3x2_pcie_rx_tbl,
@@ -1653,7 +1653,7 @@ static const struct qmp_phy_cfg sm8250_qmp_gen3x2_pciephy_cfg = {
 static const struct qmp_phy_cfg msm8998_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= msm8998_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(msm8998_pcie_serdes_tbl),
 		.tx		= msm8998_pcie_tx_tbl,
@@ -1680,7 +1680,7 @@ static const struct qmp_phy_cfg msm8998_pciephy_cfg = {
 static const struct qmp_phy_cfg sc8180x_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sc8180x_qmp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sc8180x_qmp_pcie_serdes_tbl),
 		.tx		= sc8180x_qmp_pcie_tx_tbl,
@@ -1707,7 +1707,7 @@ static const struct qmp_phy_cfg sc8180x_pciephy_cfg = {
 static const struct qmp_phy_cfg sdx55_qmp_pciephy_cfg = {
 	.lanes			= 2,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sdx55_qmp_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sdx55_qmp_pcie_serdes_tbl),
 		.tx		= sdx55_qmp_pcie_tx_tbl,
@@ -1734,7 +1734,7 @@ static const struct qmp_phy_cfg sdx55_qmp_pciephy_cfg = {
 static const struct qmp_phy_cfg sm8450_qmp_gen3x1_pciephy_cfg = {
 	.lanes			= 1,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sm8450_qmp_gen3x1_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8450_qmp_gen3x1_pcie_serdes_tbl),
 		.tx		= sm8450_qmp_gen3x1_pcie_tx_tbl,
@@ -1761,7 +1761,7 @@ static const struct qmp_phy_cfg sm8450_qmp_gen3x1_pciephy_cfg = {
 static const struct qmp_phy_cfg sm8450_qmp_gen4x2_pciephy_cfg = {
 	.lanes			= 2,
 
-	.tables = {
+	.tbls = {
 		.serdes		= sm8450_qmp_gen4x2_pcie_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8450_qmp_gen4x2_pcie_serdes_tbl),
 		.tx		= sm8450_qmp_gen4x2_pcie_tx_tbl,
@@ -1774,14 +1774,14 @@ static const struct qmp_phy_cfg sm8450_qmp_gen4x2_pciephy_cfg = {
 		.pcs_misc_num	= ARRAY_SIZE(sm8450_qmp_gen4x2_pcie_pcs_misc_tbl),
 	},
 
-	.tables_rc = &(const struct qmp_phy_cfg_tables) {
+	.tbls_rc = &(const struct qmp_phy_cfg_tbls) {
 		.serdes		= sm8450_qmp_gen4x2_pcie_rc_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8450_qmp_gen4x2_pcie_rc_serdes_tbl),
 		.pcs_misc	= sm8450_qmp_gen4x2_pcie_rc_pcs_misc_tbl,
 		.pcs_misc_num	= ARRAY_SIZE(sm8450_qmp_gen4x2_pcie_rc_pcs_misc_tbl),
 	},
 
-	.tables_ep = &(const struct qmp_phy_cfg_tables) {
+	.tbls_ep = &(const struct qmp_phy_cfg_tbls) {
 		.serdes		= sm8450_qmp_gen4x2_pcie_ep_serdes_tbl,
 		.serdes_num	= ARRAY_SIZE(sm8450_qmp_gen4x2_pcie_ep_serdes_tbl),
 		.pcs_misc	= sm8450_qmp_gen4x2_pcie_ep_pcs_misc_tbl,
@@ -1826,17 +1826,17 @@ static void qmp_pcie_configure(void __iomem *base,
 	qmp_pcie_configure_lane(base, tbl, num, 0xff);
 }
 
-static void qmp_pcie_serdes_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tables *tables)
+static void qmp_pcie_serdes_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tbls *tbls)
 {
 	void __iomem *serdes = qmp->serdes;
 
-	if (!tables)
+	if (!tbls)
 		return;
 
-	qmp_pcie_configure(serdes, tables->serdes, tables->serdes_num);
+	qmp_pcie_configure(serdes, tbls->serdes, tbls->serdes_num);
 }
 
-static void qmp_pcie_lanes_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tables *tables)
+static void qmp_pcie_lanes_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tbls *tbls)
 {
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
 	void __iomem *tx = qmp->tx;
@@ -1844,28 +1844,28 @@ static void qmp_pcie_lanes_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_t
 	void __iomem *tx2 = qmp->tx2;
 	void __iomem *rx2 = qmp->rx2;
 
-	if (!tables)
+	if (!tbls)
 		return;
 
-	qmp_pcie_configure_lane(tx, tables->tx, tables->tx_num, 1);
-	qmp_pcie_configure_lane(rx, tables->rx, tables->rx_num, 1);
+	qmp_pcie_configure_lane(tx, tbls->tx, tbls->tx_num, 1);
+	qmp_pcie_configure_lane(rx, tbls->rx, tbls->rx_num, 1);
 
 	if (cfg->lanes >= 2) {
-		qmp_pcie_configure_lane(tx2, tables->tx, tables->tx_num, 2);
-		qmp_pcie_configure_lane(rx2, tables->rx, tables->rx_num, 2);
+		qmp_pcie_configure_lane(tx2, tbls->tx, tbls->tx_num, 2);
+		qmp_pcie_configure_lane(rx2, tbls->rx, tbls->rx_num, 2);
 	}
 }
 
-static void qmp_pcie_pcs_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tables *tables)
+static void qmp_pcie_pcs_init(struct qmp_pcie *qmp, const struct qmp_phy_cfg_tbls *tbls)
 {
 	void __iomem *pcs = qmp->pcs;
 	void __iomem *pcs_misc = qmp->pcs_misc;
 
-	if (!tables)
+	if (!tbls)
 		return;
 
-	qmp_pcie_configure(pcs, tables->pcs, tables->pcs_num);
-	qmp_pcie_configure(pcs_misc, tables->pcs_misc, tables->pcs_misc_num);
+	qmp_pcie_configure(pcs, tbls->pcs, tbls->pcs_num);
+	qmp_pcie_configure(pcs_misc, tbls->pcs_misc, tbls->pcs_misc_num);
 }
 
 static int qmp_pcie_init(struct phy *phy)
@@ -1924,7 +1924,7 @@ static int qmp_pcie_power_on(struct phy *phy)
 {
 	struct qmp_pcie *qmp = phy_get_drvdata(phy);
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
-	const struct qmp_phy_cfg_tables *mode_tables;
+	const struct qmp_phy_cfg_tbls *mode_tbls;
 	void __iomem *pcs = qmp->pcs;
 	void __iomem *status;
 	unsigned int mask, val;
@@ -1934,12 +1934,12 @@ static int qmp_pcie_power_on(struct phy *phy)
 			cfg->pwrdn_ctrl);
 
 	if (qmp->mode == PHY_MODE_PCIE_RC)
-		mode_tables = cfg->tables_rc;
+		mode_tbls = cfg->tbls_rc;
 	else
-		mode_tables = cfg->tables_ep;
+		mode_tbls = cfg->tbls_ep;
 
-	qmp_pcie_serdes_init(qmp, &cfg->tables);
-	qmp_pcie_serdes_init(qmp, mode_tables);
+	qmp_pcie_serdes_init(qmp, &cfg->tbls);
+	qmp_pcie_serdes_init(qmp, mode_tbls);
 
 	ret = clk_prepare_enable(qmp->pipe_clk);
 	if (ret) {
@@ -1948,11 +1948,11 @@ static int qmp_pcie_power_on(struct phy *phy)
 	}
 
 	/* Tx, Rx, and PCS configurations */
-	qmp_pcie_lanes_init(qmp, &cfg->tables);
-	qmp_pcie_lanes_init(qmp, mode_tables);
+	qmp_pcie_lanes_init(qmp, &cfg->tbls);
+	qmp_pcie_lanes_init(qmp, mode_tbls);
 
-	qmp_pcie_pcs_init(qmp, &cfg->tables);
-	qmp_pcie_pcs_init(qmp, mode_tables);
+	qmp_pcie_pcs_init(qmp, &cfg->tbls);
+	qmp_pcie_pcs_init(qmp, mode_tbls);
 
 	/* Pull PHY out of reset state */
 	qphy_clrbits(pcs, cfg->regs[QPHY_SW_RESET], SW_RESET);
@@ -2223,9 +2223,9 @@ static int qmp_pcie_create(struct qmp_pcie *qmp, struct device_node *np)
 		qmp->pcs_misc = qmp->pcs + 0x400;
 
 	if (IS_ERR(qmp->pcs_misc)) {
-		if (cfg->tables.pcs_misc ||
-		    (cfg->tables_rc && cfg->tables_rc->pcs_misc) ||
-		    (cfg->tables_ep && cfg->tables_ep->pcs_misc)) {
+		if (cfg->tbls.pcs_misc ||
+		    (cfg->tbls_rc && cfg->tbls_rc->pcs_misc) ||
+		    (cfg->tbls_ep && cfg->tbls_ep->pcs_misc)) {
 			return PTR_ERR(qmp->pcs_misc);
 		}
 	}
