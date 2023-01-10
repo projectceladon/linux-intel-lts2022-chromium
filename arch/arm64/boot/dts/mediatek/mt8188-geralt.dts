@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+/dts-v1/;
+#include "mt8188-geralt.dtsi"
+
+/ {
+	model = "Google Geralt board";
+	compatible = "google,geralt", "mediatek,mt8188";
+};
