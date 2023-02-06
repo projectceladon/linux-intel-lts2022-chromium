@@ -110,6 +110,7 @@ err:
 	iounmap(base);
 	goto out_node_put;
 }
+EXPORT_SYMBOL_GPL(fhctl_parse_dt);
 
 static int pllfh_init(struct mtk_fh *fh, struct mtk_pllfh_data *pllfh_data)
 {
@@ -254,6 +255,7 @@ err:
 
 	return PTR_ERR(hw);
 }
+EXPORT_SYMBOL_GPL(mtk_clk_register_pllfhs);
 
 void mtk_clk_unregister_pllfhs(const struct mtk_pll_data *plls, int num_plls,
 			       struct mtk_pllfh_data *pllfhs, int num_fhs,
@@ -293,3 +295,4 @@ void mtk_clk_unregister_pllfhs(const struct mtk_pll_data *plls, int num_plls,
 
 	iounmap(base);
 }
+EXPORT_SYMBOL_GPL(mtk_clk_unregister_pllfhs);
