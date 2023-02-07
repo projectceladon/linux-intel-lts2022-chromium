@@ -434,6 +434,13 @@
 		};
 	};
 
+	ec_ap_int: cros-ec-irq-default-pins {
+		pins1 {
+			pinmux = <PINMUX_GPIO149__FUNC_B_GPIO149>;
+			input-enable;
+		};
+	};
+
 	edp_pins_default: edp-default-pins {
 		pins-cmd-dat {
 			pinmux = <PINMUX_GPIO17__FUNC_I0_EDP_TX_HPD>;
@@ -666,6 +673,16 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_pins>;
 	status = "okay";
+
+	cros_ec: cros-ec@0 {
+		compatible = "google,cros-ec-spi";
+		reg = <0>;
+		spi-max-frequency = <3000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <149 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_ap_int>;
+	};
 };
 
 &spi1 {
