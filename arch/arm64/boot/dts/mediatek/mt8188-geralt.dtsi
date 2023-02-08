@@ -1037,6 +1037,7 @@
 
 &xhci2 {
 	status = "okay";
+	usb2-lpm-disable;
 };
 
 #include <arm/cros-ec-keyboard.dtsi>
