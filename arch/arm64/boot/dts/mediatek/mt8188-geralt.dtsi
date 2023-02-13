@@ -116,6 +116,27 @@
 		vin-supply = <&dx_pp3300>;
 	};
 
+	pp3300_mipi: regulator-pp3300-mipi {
+		compatible = "regulator-fixed";
+		regulator-name = "pp3300_mipi";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	pp3300_s3: pp3300-s3-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "pp3300_s3";
+		pinctrl-names = "default";
+		pinctrl-0 = <&en_pp3300_mipi>;
+		enable-active-high;
+		regulator-boot-on;
+		gpio = <&pio 144 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&pp3300_mipi>;
+	};
+
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -305,6 +326,19 @@
 	pinctrl-0 = <&i2c2_pin>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	touchscreen@1 {
+		status = "okay";
+		compatible = "hid-over-i2c";
+		reg = <0x1>;
+		interrupt-parent = <&pio>;
+		interrupts = <143 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchscreen_pins>;
+		vdd-supply = <&pp3300_s3>;
+		vddl-supply = <&mt6359_vm18_ldo_reg>;
+		hid-descr-addr = <0x0001>;
+	};
 };
 
 &i2c3 {
@@ -460,6 +494,13 @@
 	en_pp3300_dxedp: en-pp3300-dxedp {
 		pins1 {
 			pinmux = <PINMUX_GPIO27__FUNC_B_GPIO27>;
+			output-low;
+		};
+	};
+
+	en_pp3300_mipi: en-pp3300-mipi {
+		pins1 {
+			pinmux = <PINMUX_GPIO144__FUNC_B_GPIO144>;
 			output-low;
 		};
 	};
@@ -671,6 +712,13 @@
 				 <PINMUX_GPIO81__FUNC_B0_SPIM2_MOSI>,
 				 <PINMUX_GPIO82__FUNC_B0_SPIM2_MISO>;
 			bias-disable;
+		};
+	};
+
+	touchscreen_pins: touchscreen-pins {
+		pins-irq {
+			pinmux = <PINMUX_GPIO143__FUNC_B_GPIO143>;
+			input-enable;
 		};
 	};
 };
