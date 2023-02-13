@@ -76,6 +76,7 @@
 #include "i915_drv.h"
 #include "i915_reg.h"
 #include "i915_utils.h"
+#include "i9xx_wm.h"
 #include "icl_dsi.h"
 #include "intel_acpi.h"
 #include "intel_atomic.h"
@@ -117,6 +118,7 @@
 #include "intel_tc.h"
 #include "intel_vga.h"
 #include "i9xx_plane.h"
+#include "intel_wm.h"
 #include "skl_scaler.h"
 #include "skl_universal_plane.h"
 #include "skl_watermark.h"
@@ -8735,7 +8737,7 @@ int intel_modeset_init_nogem(struct drm_i915_private *i915)
 	if (!HAS_DISPLAY(i915))
 		return 0;
 
-	intel_init_pm(i915);
+	intel_wm_init(i915);
 
 	intel_panel_sanitize_ssc(i915);
 
