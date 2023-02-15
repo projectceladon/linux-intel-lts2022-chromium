@@ -289,6 +289,15 @@
 	pinctrl-0 = <&i2c1_pin>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	cr50@50 {
+		compatible = "google,cr50";
+		reg = <0x50>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 IRQ_TYPE_EDGE_RISING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gsc_ap_int_odl>;
+	};
 };
 
 &i2c2 {
@@ -452,6 +461,13 @@
 		pins1 {
 			pinmux = <PINMUX_GPIO27__FUNC_B_GPIO27>;
 			output-low;
+		};
+	};
+
+	gsc_ap_int_odl: gsc_ap_int_odl {
+		pin {
+			pinmux = <PINMUX_GPIO0__FUNC_B_GPIO0>;
+			input-enable;
 		};
 	};
 
