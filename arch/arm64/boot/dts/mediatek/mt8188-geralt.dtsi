@@ -447,6 +447,12 @@
 	regulator-always-on;
 };
 
+&mt6359_vgpu11_sshub_buck_reg {
+	regulator-always-on;
+	regulator-min-microvolt = <550000>;
+	regulator-max-microvolt = <550000>;
+};
+
 &mt6359_vpu_buck_reg {
 	regulator-always-on;
 };
@@ -911,6 +917,14 @@
 		};
 	};
 
+	scp_pins: scp {
+		pins_scp_vreq {
+			pinmux = <PINMUX_GPIO98__FUNC_O_SCP_VREQ_VAO>;
+			bias-disable;
+			input-enable;
+		};
+	};
+
 	spi0_pins: spi0_pins {
 		pins_spi {
 			pinmux = <PINMUX_GPIO69__FUNC_O_SPIM0_CSB>,
@@ -963,6 +977,8 @@
 };
 
 &scp {
+	pinctrl-names = "default";
+	pinctrl-0 = <&scp_pins>;
 	memory-region = <&scp_mem_reserved>;
 	status = "okay";
 };
