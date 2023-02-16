@@ -156,6 +156,15 @@
 			no-map;
 		};
 	};
+
+	usb_p1_vbus: regulator-usb-p1-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "vbus0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&pio 150 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &auxadc {
@@ -1033,6 +1042,7 @@
 
 &xhci1 {
 	status = "okay";
+	vbus-supply = <&usb_p1_vbus>;
 };
 
 &xhci2 {
