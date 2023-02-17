@@ -105,6 +105,13 @@
 		};
 	};
 
+	pcie_3v3_en: pcie-3v3-en-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie_3v3_en";
+		gpio = <&pio 12 0>;
+		enable-active-high;
+	};
+
 	pp3300_dx_edp: pp3300-dx-edp-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "pp3300_dx_edp";
@@ -452,6 +459,19 @@
 		reg = <0>;
 		spi-max-frequency = <52000000>;
 	};
+};
+
+&pcie {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_pins_default>;
+	pcie3v3-supply = <&pcie_3v3_en>;
+	pcie1v8-supply = <&mt6359_vcn18_ldo_reg>;
+	dsc-reset-gpios = <&pio 145 1>;
+	status = "okay";
+};
+
+&pciephy {
+	status = "okay";
 };
 
 &pio {
@@ -855,6 +875,15 @@
 			pinmux = <PINMUX_GPIO25__FUNC_B_GPIO25>,
 				 <PINMUX_GPIO1__FUNC_B_GPIO1>;
 			output-low;
+		};
+	};
+
+	pcie_pins_default: pcie-default {
+		mux {
+			pinmux = <PINMUX_GPIO47__FUNC_I1_WAKEN>,
+				 <PINMUX_GPIO48__FUNC_O_PERSTN>,
+				 <PINMUX_GPIO49__FUNC_B1_CLKREQN>;
+			bias-pull-up;
 		};
 	};
 
