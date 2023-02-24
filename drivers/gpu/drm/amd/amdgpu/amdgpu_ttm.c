@@ -1713,15 +1713,13 @@ static int amdgpu_ttm_reserve_tmr(struct amdgpu_device *adev)
 	}
 
 	if (!adev->gmc.is_app_apu) {
-		ret = amdgpu_bo_create_kernel_at(adev,
-						adev->gmc.real_vram_size - reserve_size,
-						reserve_size,
-						&adev->mman.fw_reserved_memory,
-						NULL);
+		ret = amdgpu_bo_create_kernel_at(
+			adev, adev->gmc.real_vram_size - reserve_size,
+			reserve_size, &adev->mman.fw_reserved_memory, NULL);
 		if (ret) {
 			DRM_ERROR("alloc tmr failed(%d)!\n", ret);
 			amdgpu_bo_free_kernel(&adev->mman.fw_reserved_memory,
-						NULL, NULL);
+					      NULL, NULL);
 			return ret;
 		}
 	} else {
@@ -1914,7 +1912,7 @@ void amdgpu_ttm_fini(struct amdgpu_device *adev)
 					NULL);
 		if (adev->mman.stolen_reserved_size)
 			amdgpu_bo_free_kernel(&adev->mman.stolen_reserved_memory,
-						NULL, NULL);
+					      NULL, NULL);
 	}
 	amdgpu_bo_free_kernel(&adev->mman.sdma_access_bo, NULL,
 					&adev->mman.sdma_access_ptr);
