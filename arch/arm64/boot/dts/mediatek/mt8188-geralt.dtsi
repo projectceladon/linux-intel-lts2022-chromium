@@ -20,6 +20,24 @@
 		mmc0 = &mmc0;
 	};
 
+	avdd_lcd: avdd-lcd {
+		compatible = "regulator-fixed";
+		regulator-name = "avdd_lcd";
+		gpio = <&pio 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-names = "default";
+		pinctrl-0 = <&avdd_lcd_en>;
+	};
+
+	avee_lcd: avee-lcd {
+		compatible = "regulator-fixed";
+		regulator-name = "avee_lcd";
+		gpio = <&pio 4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-names = "default";
+		pinctrl-0 = <&avee_lcd_en>;
+	};
+
 	backlight_lcd0: backlight_lcd0 {
 		compatible = "pwm-backlight";
 		pwms = <&disp_pwm1 0 500000>;
@@ -127,8 +145,8 @@
 		compatible = "boe,tv110c9m-ll3";
 		reg = <0>;
 		enable-gpios = <&pio 25 0>;
-		avdd-supply = <&reg_lcd_avdd>;
-		avee-supply = <&reg_lcd_avee>;
+		avdd-supply = <&avdd_lcd>;
+		avee-supply = <&avee_lcd>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&panel_pins_default>;
 		pp1800-supply = <&mt6359_vm18_ldo_reg>;
@@ -283,28 +301,6 @@
 	pinctrl-0 = <&i2c3_pin>;
 	clock-frequency = <400000>;
 	status = "okay";
-
-	regulator@3e {
-		compatible = "tps65132";
-		reg = <0x3e>;
-
-		reg_lcd_avdd: outp {
-			regulator-name = "outp";
-			regulator-min-microvolt = <5700000>;
-			regulator-max-microvolt = <5700000>;
-			enable-gpios = <&pio 3 0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&avdd_lcd_en>;
-		};
-
-		reg_lcd_avee: outn {
-			regulator-name = "outn";
-			regulator-min-microvolt = <5700000>;
-			regulator-max-microvolt = <5700000>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&avee_lcd_en>;
-		};
-	};
 };
 
 &i2c4 {
