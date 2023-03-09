@@ -286,6 +286,7 @@ int btintel_version_info(struct hci_dev *hdev, struct intel_version *ver)
 	case 0x12:      /* ThP */
 	case 0x13:      /* HrP */
 	case 0x14:      /* CcP */
+	case 0x1c:      /* GaP */
 		break;
 	default:
 		bt_dev_err(hdev, "Unsupported Intel hardware variant (%u)",
@@ -460,6 +461,7 @@ static int btintel_version_info_tlv(struct hci_dev *hdev,
 	case 0x18:	/* Slr */
 	case 0x19:	/* Slr-F */
 	case 0x1b:      /* Mgr */
+	case 0x1c:      /* GaP */
 		break;
 	default:
 		bt_dev_err(hdev, "Unsupported Intel hardware variant (0x%x)",
@@ -1450,8 +1452,10 @@ static void btintel_coredump(struct hci_dev *hdev)
 	struct sk_buff *skb;
 
 	skb = __hci_cmd_sync(hdev, 0xfc4d, 2, param, HCI_CMD_TIMEOUT);
-	if (IS_ERR(skb))
+	if (IS_ERR(skb)) {
 		bt_dev_err(hdev, "Coredump failed (%ld)", PTR_ERR(skb));
+		return;
+	}
 	kfree_skb(skb);
 }
 
@@ -2570,6 +2574,7 @@ static int btintel_setup_combined(struct hci_dev *hdev)
 		case 0x12:      /* ThP */
 		case 0x13:      /* HrP */
 		case 0x14:      /* CcP */
+		case 0x1c:      /* GaP */
 			set_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks);
 			fallthrough;
 		case 0x0c:	/* WsP */
@@ -2664,6 +2669,7 @@ static int btintel_setup_combined(struct hci_dev *hdev)
 	case 0x18:
 	case 0x19:
 	case 0x1b:
+	case 0x1c:
 		/* Display version information of TLV type */
 		btintel_version_info_tlv(hdev, &ver_tlv);
 
