@@ -520,6 +520,204 @@
 		method = "smc";
 	};
 
+	thermal_zones: thermal-zones {
+		cpu_little1 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 0>;
+
+			trips {
+				cpu_little1_crit: cpu-little1-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu_little2 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 1>;
+
+			trips {
+				cpu_little2_crit: cpu-little2-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu_little3 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 2>;
+
+			trips {
+				cpu_little3_crit: cpu-little3-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu_little4 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 3>;
+
+			trips {
+				cpu_little4_crit: cpu-little4-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu_big0 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 4>;
+
+			trips {
+				cpu_big0_crit: cpu-big0-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu_big1 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsmcu 5>;
+
+			trips {
+				cpu_big1_crit: cpu-big1-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		apu {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 0>;
+
+			trips {
+				apu_crit: apu-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		gpu1 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 1>;
+
+			trips {
+				gpu1_crit: gpu1-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		gpu2 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 2>;
+
+			trips {
+				gpu2_crit: gpu2-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		soc1 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 3>;
+
+			trips {
+				soc1_crit: soc1-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		soc2 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 4>;
+
+			trips {
+				soc2_crit: soc2-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		soc3 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 5>;
+
+			trips {
+				soc3_crit: soc3-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cam1 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 6>;
+
+			trips {
+				cam1_crit: cam1-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cam2 {
+			polling-delay = <0>; /* milliseconds */
+			polling-delay-passive = <0>; /* milliseconds */
+			thermal-sensors = <&lvtsap 7>;
+
+			trips {
+				cam2_crit: cam2-crit {
+					temperature = <119000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+	};
+
 	timer: timer {
 		compatible = "arm,armv8-timer";
 		interrupt-parent = <&gic>;
@@ -1133,6 +1331,17 @@
 			status = "disabled";
 		};
 
+		lvtsap: thermal-sensor@1100b000 {
+			compatible = "mediatek,mt8188-lvts-ap";
+			#thermal-sensor-cells = <1>;
+			reg = <0 0x1100b000 0 0x1000>;
+			interrupts = <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH 0>;
+			clocks = <&infracfg_ao CLK_INFRA_AO_THERM>;
+			resets = <&infracfg_ao MT8188_INFRA_RST1_THERMAL_CTRL_RST>;
+			nvmem-cells = <&lvts_efuse_data1>;
+			nvmem-cell-names = "lvts_calib_data1";
+		};
+
 		disp_pwm0: disp_pwm0@1100e000 {
 			compatible = "mediatek,mt8188-disp-pwm",
 				     "mediatek,mt8183-disp-pwm";
@@ -1270,6 +1479,17 @@
 			assigned-clocks = <&topckgen CLK_TOP_MSDC30_1>;
 			assigned-clock-parents = <&topckgen CLK_TOP_MSDCPLL_D2>;
 			status = "disabled";
+		};
+
+		lvtsmcu: thermal-sensor@11278000 {
+			compatible = "mediatek,mt8188-lvts-mcu";
+			#thermal-sensor-cells = <1>;
+			reg = <0 0x11278000 0 0x1000>;
+			interrupts = <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH 0>;
+			clocks = <&infracfg_ao CLK_INFRA_AO_THERM>;
+			resets = <&infracfg_ao MT8188_INFRA_RST1_THERMAL_MCU_RST>;
+			nvmem-cells = <&lvts_efuse_data1>;
+			nvmem-cell-names = "lvts_calib_data1";
 		};
 
 		i2c0: i2c@11280000 {
