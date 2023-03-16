@@ -520,6 +520,11 @@
 		method = "smc";
 	};
 
+	vtemp: vtemp {
+		compatible = "mediatek,virtual-temp";
+		#thermal-sensor-cells = <1>;
+	};
+
 	thermal_zones: thermal-zones {
 		cpu_little1 {
 			polling-delay = <0>; /* milliseconds */
@@ -713,6 +718,69 @@
 					temperature = <119000>;
 					hysteresis = <2000>;
 					type = "critical";
+				};
+			};
+		};
+
+		soc_max {
+			polling-delay = <1000>; /* milliseconds */
+			polling-delay-passive = <100>; /* milliseconds */
+			thermal-sensors = <&vtemp 0>;
+			sustainable-power = <1500>;
+
+			trips {
+				threshold: trip-point@0 {
+					temperature = <68000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				target: target@1 {
+					temperature = <85000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				soc_max_crit: soc_max_crit@0 {
+					temperature = <115000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+
+			cooling_map: cooling-maps {
+				map0 {
+					trip = <&target>;
+					cooling-device = <&cpu0
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu1
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu2
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu3
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu4
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu5
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>;
+					contribution = <2345>;
+				};
+
+				map1 {
+					trip = <&target>;
+					cooling-device = <&cpu6
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>,
+							<&cpu7
+						THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>;
+					contribution = <1024>;
 				};
 			};
 		};
