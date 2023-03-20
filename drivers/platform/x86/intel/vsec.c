@@ -21,6 +21,7 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/types.h>
+#include <asm/intel-family.h>
 
 #include "vsec.h"
 
@@ -366,6 +367,10 @@ static int intel_vsec_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	if (!info)
 		return -EINVAL;
 
+	if((boot_cpu_data.x86_model == INTEL_FAM6_METEORLAKE_L) &&
+			(boot_cpu_data.x86_stepping == 1))
+		info->quirks |= VSEC_QUIRK_TABLE_SHIFT;
+
 	if (intel_vsec_walk_dvsec(pdev, info))
 		have_devices = true;
 
@@ -408,14 +413,23 @@ static const struct intel_vsec_platform_info dg1_info = {
 	.quirks = VSEC_QUIRK_NO_DVSEC | VSEC_QUIRK_EARLY_HW,
 };
 
+/* MTL info */
+static const struct intel_vsec_platform_info mtl_info = {
+	.quirks = VSEC_QUIRK_NO_WATCHER | VSEC_QUIRK_NO_CRASHLOG,
+};
+
 #define PCI_DEVICE_ID_INTEL_VSEC_ADL		0x467d
 #define PCI_DEVICE_ID_INTEL_VSEC_DG1		0x490e
+#define PCI_DEVICE_ID_INTEL_VSEC_MTL_M		0x7d0d
+#define PCI_DEVICE_ID_INTEL_VSEC_MTL_S		0xad0d
 #define PCI_DEVICE_ID_INTEL_VSEC_OOBMSM		0x09a7
 #define PCI_DEVICE_ID_INTEL_VSEC_RPL		0xa77d
 #define PCI_DEVICE_ID_INTEL_VSEC_TGL		0x9a0d
 static const struct pci_device_id intel_vsec_pci_ids[] = {
 	{ PCI_DEVICE_DATA(INTEL, VSEC_ADL, &tgl_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_DG1, &dg1_info) },
+	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_M, &mtl_info) },
+	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_S, &mtl_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_OOBMSM, &(struct intel_vsec_platform_info) {}) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_RPL, &tgl_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_TGL, &tgl_info) },

@@ -9,10 +9,13 @@
 
 #include "gem/i915_gem_context.h"
 #include "gem/i915_gem_internal.h"
+#include "gt/intel_gt_print.h"
 #include "gt/intel_gt_regs.h"
 
 #include "i915_cmd_parser.h"
 #include "i915_drv.h"
+#include "i915_irq.h"
+#include "i915_reg.h"
 #include "intel_breadcrumbs.h"
 #include "intel_context.h"
 #include "intel_engine.h"
@@ -244,6 +247,13 @@ static const struct engine_info intel_engines[] = {
 			{ .graphics_ver = 12, .base = GEN12_COMPUTE3_RING_BASE }
 		}
 	},
+	[GSC0] = {
+		.class = OTHER_CLASS,
+		.instance = OTHER_GSC_INSTANCE,
+		.mmio_bases = {
+			{ .graphics_ver = 12, .base = MTL_GSC_RING_BASE }
+		}
+	},
 };
 
 /**
@@ -324,6 +334,7 @@ u32 intel_engine_context_size(struct intel_gt *gt, u8 class)
 	case VIDEO_DECODE_CLASS:
 	case VIDEO_ENHANCEMENT_CLASS:
 	case COPY_ENGINE_CLASS:
+	case OTHER_CLASS:
 		if (GRAPHICS_VER(gt->i915) < 8)
 			return 0;
 		return GEN8_LR_CONTEXT_OTHER_SIZE;
@@ -415,6 +426,7 @@ static u32 get_reset_domain(u8 ver, enum intel_engine_id id)
 			[CCS1]  = GEN11_GRDOM_RENDER,
 			[CCS2]  = GEN11_GRDOM_RENDER,
 			[CCS3]  = GEN11_GRDOM_RENDER,
+			[GSC0]  = GEN12_GRDOM_GSC,
 		};
 		GEM_BUG_ON(id >= ARRAY_SIZE(engine_reset_domains) ||
 			   !engine_reset_domains[id]);
@@ -508,9 +520,14 @@ static int intel_engine_setup(struct intel_gt *gt, enum intel_engine_id id,
 	engine->props.timeslice_duration_ms =
 		CONFIG_DRM_I915_TIMESLICE_DURATION;
 
-	/* Override to uninterruptible for OpenCL workloads. */
+	/*
+	 * Mid-thread pre-emption is not available in Gen12. Unfortunately,
+	 * some compute workloads run quite long threads. That means they get
+	 * reset due to not pre-empting in a timely manner. So, bump the
+	 * pre-emption timeout value to be much higher for compute engines.
+	 */
 	if (GRAPHICS_VER(i915) == 12 && (engine->flags & I915_ENGINE_HAS_RCS_REG_STATE))
-		engine->props.preempt_timeout_ms = 0;
+		engine->props.preempt_timeout_ms = CONFIG_DRM_I915_PREEMPT_TIMEOUT_COMPUTE;
 
 	/* Cap properties according to any system limits */
 #define CLAMP_PROP(field) \
@@ -878,6 +895,24 @@ static intel_engine_mask_t init_engine_mask(struct intel_gt *gt)
 	engine_mask_apply_compute_fuses(gt);
 	engine_mask_apply_copy_fuses(gt);
 
+	/*
+	 * The only use of the GSC CS is to load and communicate with the GSC
+	 * FW, so we have no use for it if we don't have the FW.
+	 *
+	 * IMPORTANT: in cases where we don't have the GSC FW, we have a
+	 * catch-22 situation that breaks media C6 due to 2 requirements:
+	 * 1) once turned on, the GSC power well will not go to sleep unless the
+	 *    GSC FW is loaded.
+	 * 2) to enable idling (which is required for media C6) we need to
+	 *    initialize the IDLE_MSG register for the GSC CS and do at least 1
+	 *    submission, which will wake up the GSC power well.
+	 */
+	if (__HAS_ENGINE(info->engine_mask, GSC0) && !intel_uc_wants_gsc_uc(&gt->uc)) {
+		drm_notice(&gt->i915->drm,
+			   "No GSC FW selected, disabling GSC CS and media C6\n");
+		info->engine_mask &= ~BIT(GSC0);
+	}
+
 	return info->engine_mask;
 }
 
@@ -1109,11 +1144,129 @@ err_put:
 	return ret;
 }
 
+static int intel_engine_init_tlb_invalidation(struct intel_engine_cs *engine)
+{
+	static const union intel_engine_tlb_inv_reg gen8_regs[] = {
+		[RENDER_CLASS].reg		= GEN8_RTCR,
+		[VIDEO_DECODE_CLASS].reg	= GEN8_M1TCR, /* , GEN8_M2TCR */
+		[VIDEO_ENHANCEMENT_CLASS].reg	= GEN8_VTCR,
+		[COPY_ENGINE_CLASS].reg		= GEN8_BTCR,
+	};
+	static const union intel_engine_tlb_inv_reg gen12_regs[] = {
+		[RENDER_CLASS].reg		= GEN12_GFX_TLB_INV_CR,
+		[VIDEO_DECODE_CLASS].reg	= GEN12_VD_TLB_INV_CR,
+		[VIDEO_ENHANCEMENT_CLASS].reg	= GEN12_VE_TLB_INV_CR,
+		[COPY_ENGINE_CLASS].reg		= GEN12_BLT_TLB_INV_CR,
+		[COMPUTE_CLASS].reg		= GEN12_COMPCTX_TLB_INV_CR,
+	};
+	static const union intel_engine_tlb_inv_reg xehp_regs[] = {
+		[RENDER_CLASS].mcr_reg		  = XEHP_GFX_TLB_INV_CR,
+		[VIDEO_DECODE_CLASS].mcr_reg	  = XEHP_VD_TLB_INV_CR,
+		[VIDEO_ENHANCEMENT_CLASS].mcr_reg = XEHP_VE_TLB_INV_CR,
+		[COPY_ENGINE_CLASS].mcr_reg	  = XEHP_BLT_TLB_INV_CR,
+		[COMPUTE_CLASS].mcr_reg		  = XEHP_COMPCTX_TLB_INV_CR,
+	};
+	static const union intel_engine_tlb_inv_reg xelpmp_regs[] = {
+		[VIDEO_DECODE_CLASS].reg	  = GEN12_VD_TLB_INV_CR,
+		[VIDEO_ENHANCEMENT_CLASS].reg     = GEN12_VE_TLB_INV_CR,
+		[OTHER_CLASS].reg		  = XELPMP_GSC_TLB_INV_CR,
+	};
+	struct drm_i915_private *i915 = engine->i915;
+	const unsigned int instance = engine->instance;
+	const unsigned int class = engine->class;
+	const union intel_engine_tlb_inv_reg *regs;
+	union intel_engine_tlb_inv_reg reg;
+	unsigned int num = 0;
+	u32 val;
+
+	/*
+	 * New platforms should not be added with catch-all-newer (>=)
+	 * condition so that any later platform added triggers the below warning
+	 * and in turn mandates a human cross-check of whether the invalidation
+	 * flows have compatible semantics.
+	 *
+	 * For instance with the 11.00 -> 12.00 transition three out of five
+	 * respective engine registers were moved to masked type. Then after the
+	 * 12.00 -> 12.50 transition multi cast handling is required too.
+	 */
+
+	if (engine->gt->type == GT_MEDIA) {
+		if (MEDIA_VER_FULL(i915) == IP_VER(13, 0)) {
+			regs = xelpmp_regs;
+			num = ARRAY_SIZE(xelpmp_regs);
+		}
+	} else {
+		if (GRAPHICS_VER_FULL(i915) == IP_VER(12, 71) ||
+		    GRAPHICS_VER_FULL(i915) == IP_VER(12, 70) ||
+		    GRAPHICS_VER_FULL(i915) == IP_VER(12, 50) ||
+		    GRAPHICS_VER_FULL(i915) == IP_VER(12, 55)) {
+			regs = xehp_regs;
+			num = ARRAY_SIZE(xehp_regs);
+		} else if (GRAPHICS_VER_FULL(i915) == IP_VER(12, 0) ||
+			   GRAPHICS_VER_FULL(i915) == IP_VER(12, 10)) {
+			regs = gen12_regs;
+			num = ARRAY_SIZE(gen12_regs);
+		} else if (GRAPHICS_VER(i915) >= 8 && GRAPHICS_VER(i915) <= 11) {
+			regs = gen8_regs;
+			num = ARRAY_SIZE(gen8_regs);
+		} else if (GRAPHICS_VER(i915) < 8) {
+			return 0;
+		}
+	}
+
+	if (gt_WARN_ONCE(engine->gt, !num,
+			 "Platform does not implement TLB invalidation!"))
+		return -ENODEV;
+
+	if (gt_WARN_ON_ONCE(engine->gt,
+			    class >= num ||
+			    (!regs[class].reg.reg &&
+			     !regs[class].mcr_reg.reg)))
+		return -ERANGE;
+
+	reg = regs[class];
+
+	if (regs == xelpmp_regs && class == OTHER_CLASS) {
+		/*
+		 * There's only a single GSC instance, but it uses register bit
+		 * 1 instead of either 0 or OTHER_GSC_INSTANCE.
+		 */
+		GEM_WARN_ON(instance != OTHER_GSC_INSTANCE);
+		val = 1;
+	} else if (regs == gen8_regs && class == VIDEO_DECODE_CLASS && instance == 1) {
+		reg.reg = GEN8_M2TCR;
+		val = 0;
+	} else {
+		val = instance;
+	}
+
+	val = BIT(val);
+
+	engine->tlb_inv.mcr = regs == xehp_regs;
+	engine->tlb_inv.reg = reg;
+	engine->tlb_inv.done = val;
+
+	if (GRAPHICS_VER(i915) >= 12 &&
+	    (engine->class == VIDEO_DECODE_CLASS ||
+	     engine->class == VIDEO_ENHANCEMENT_CLASS ||
+	     engine->class == COMPUTE_CLASS ||
+	     engine->class == OTHER_CLASS))
+		engine->tlb_inv.request = _MASKED_BIT_ENABLE(val);
+	else
+		engine->tlb_inv.request = val;
+
+	return 0;
+}
+
 static int engine_setup_common(struct intel_engine_cs *engine)
 {
 	int err;
 
 	init_llist_head(&engine->barrier_tasks);
+
+	err = intel_engine_init_tlb_invalidation(engine);
+	if (err)
+		return err;
 
 	err = init_status_page(engine);
 	if (err)
@@ -1343,8 +1496,13 @@ int intel_engines_init(struct intel_gt *gt)
 			return err;
 
 		err = setup(engine);
-		if (err)
+		if (err) {
+			intel_engine_cleanup_common(engine);
 			return err;
+		}
+
+		/* The backend should now be responsible for cleanup */
+		GEM_BUG_ON(engine->release == NULL);
 
 		err = engine_init_common(engine);
 		if (err)
@@ -1455,10 +1613,12 @@ static int __intel_engine_stop_cs(struct intel_engine_cs *engine,
 	intel_uncore_write_fw(uncore, mode, _MASKED_BIT_ENABLE(STOP_RING));
 
 	/*
-	 * Wa_22011802037 : gen11, gen12, Prior to doing a reset, ensure CS is
+	 * Wa_22011802037: Prior to doing a reset, ensure CS is
 	 * stopped, set ring stop bit and prefetch disable bit to halt CS
 	 */
-	if (IS_GRAPHICS_VER(engine->i915, 11, 12))
+	if (IS_MTL_GRAPHICS_STEP(engine->i915, M, STEP_A0, STEP_B0) ||
+	    (GRAPHICS_VER(engine->i915) >= 11 &&
+	    GRAPHICS_VER_FULL(engine->i915) < IP_VER(12, 70)))
 		intel_uncore_write_fw(uncore, RING_MODE_GEN7(engine->mmio_base),
 				      _MASKED_BIT_ENABLE(GEN12_GFX_PREFETCH_DISABLE));
 
@@ -1543,11 +1703,8 @@ static u32 __cs_pending_mi_force_wakes(struct intel_engine_cs *engine)
 	};
 	u32 val;
 
-	if (!_reg[engine->id].reg) {
-		drm_err(&engine->i915->drm,
-			"MSG IDLE undefined for engine id %u\n", engine->id);
+	if (!_reg[engine->id].reg)
 		return 0;
-	}
 
 	val = intel_uncore_read(engine->uncore, _reg[engine->id]);
 
@@ -1623,11 +1780,11 @@ void intel_engine_get_instdone(const struct intel_engine_cs *engine,
 		for_each_ss_steering(iter, engine->gt, slice, subslice) {
 			instdone->sampler[slice][subslice] =
 				intel_gt_mcr_read(engine->gt,
-						  GEN7_SAMPLER_INSTDONE,
+						  GEN8_SAMPLER_INSTDONE,
 						  slice, subslice);
 			instdone->row[slice][subslice] =
 				intel_gt_mcr_read(engine->gt,
-						  GEN7_ROW_INSTDONE,
+						  GEN8_ROW_INSTDONE,
 						  slice, subslice);
 		}
 
@@ -2073,17 +2230,6 @@ static void print_request_ring(struct drm_printer *m, struct i915_request *rq)
 	}
 }
 
-static unsigned long list_count(struct list_head *list)
-{
-	struct list_head *pos;
-	unsigned long count = 0;
-
-	list_for_each(pos, list)
-		count++;
-
-	return count;
-}
-
 static unsigned long read_ul(void *p, size_t x)
 {
 	return *(unsigned long *)(p + x);
@@ -2175,11 +2321,11 @@ void intel_engine_dump_active_requests(struct list_head *requests,
 	}
 }
 
-static void engine_dump_active_requests(struct intel_engine_cs *engine, struct drm_printer *m)
+static void engine_dump_active_requests(struct intel_engine_cs *engine,
+					struct drm_printer *m)
 {
+	struct intel_context *hung_ce = NULL;
 	struct i915_request *hung_rq = NULL;
-	struct intel_context *ce;
-	bool guc;
 
 	/*
 	 * No need for an engine->irq_seqno_barrier() before the seqno reads.
@@ -2188,27 +2334,22 @@ static void engine_dump_active_requests(struct intel_engine_cs *engine, struct d
 	 * But the intention here is just to report an instantaneous snapshot
 	 * so that's fine.
 	 */
-	lockdep_assert_held(&engine->sched_engine->lock);
+	intel_engine_get_hung_entity(engine, &hung_ce, &hung_rq);
 
 	drm_printf(m, "\tRequests:\n");
 
-	guc = intel_uc_uses_guc_submission(&engine->gt->uc);
-	if (guc) {
-		ce = intel_engine_get_hung_context(engine);
-		if (ce)
-			hung_rq = intel_context_find_active_request(ce);
-	} else {
-		hung_rq = intel_engine_execlist_find_hung_request(engine);
-	}
-
 	if (hung_rq)
 		engine_dump_request(hung_rq, m, "\t\thung");
+	else if (hung_ce)
+		drm_printf(m, "\t\tGot hung ce but no hung rq!\n");
 
-	if (guc)
+	if (intel_uc_uses_guc_submission(&engine->gt->uc))
 		intel_guc_dump_active_requests(engine, hung_rq, m);
 	else
-		intel_engine_dump_active_requests(&engine->sched_engine->requests,
-						  hung_rq, m);
+		intel_execlists_dump_active_requests(engine, hung_rq, m);
+
+	if (hung_rq)
+		i915_request_put(hung_rq);
 }
 
 void intel_engine_dump(struct intel_engine_cs *engine,
@@ -2218,7 +2359,6 @@ void intel_engine_dump(struct intel_engine_cs *engine,
 	struct i915_gpu_error * const error = &engine->i915->gpu_error;
 	struct i915_request *rq;
 	intel_wakeref_t wakeref;
-	unsigned long flags;
 	ktime_t dummy;
 
 	if (header) {
@@ -2255,12 +2395,7 @@ void intel_engine_dump(struct intel_engine_cs *engine,
 		   i915_reset_count(error));
 	print_properties(engine, m);
 
-	spin_lock_irqsave(&engine->sched_engine->lock, flags);
 	engine_dump_active_requests(engine, m);
-
-	drm_printf(m, "\tOn hold?: %lu\n",
-		   list_count(&engine->sched_engine->hold));
-	spin_unlock_irqrestore(&engine->sched_engine->lock, flags);
 
 	drm_printf(m, "\tMMIO base:  0x%08x\n", engine->mmio_base);
 	wakeref = intel_runtime_pm_get_if_in_use(engine->uncore->rpm);
@@ -2307,8 +2442,7 @@ intel_engine_create_virtual(struct intel_engine_cs **siblings,
 	return siblings[0]->cops->create_virtual(siblings, count, flags);
 }
 
-struct i915_request *
-intel_engine_execlist_find_hung_request(struct intel_engine_cs *engine)
+static struct i915_request *engine_execlist_find_hung_request(struct intel_engine_cs *engine)
 {
 	struct i915_request *request, *active = NULL;
 
@@ -2358,6 +2492,33 @@ intel_engine_execlist_find_hung_request(struct intel_engine_cs *engine)
 	}
 
 	return active;
+}
+
+void intel_engine_get_hung_entity(struct intel_engine_cs *engine,
+				  struct intel_context **ce, struct i915_request **rq)
+{
+	unsigned long flags;
+
+	*ce = intel_engine_get_hung_context(engine);
+	if (*ce) {
+		intel_engine_clear_hung_context(engine);
+
+		*rq = intel_context_get_active_request(*ce);
+		return;
+	}
+
+	/*
+	 * Getting here with GuC enabled means it is a forced error capture
+	 * with no actual hang. So, no need to attempt the execlist search.
+	 */
+	if (intel_uc_uses_guc_submission(&engine->gt->uc))
+		return;
+
+	spin_lock_irqsave(&engine->sched_engine->lock, flags);
+	*rq = engine_execlist_find_hung_request(engine);
+	if (*rq)
+		*rq = i915_request_get_rcu(*rq);
+	spin_unlock_irqrestore(&engine->sched_engine->lock, flags);
 }
 
 void xehp_enable_ccs_engines(struct intel_engine_cs *engine)

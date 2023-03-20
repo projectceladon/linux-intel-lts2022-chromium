@@ -9277,13 +9277,13 @@ static struct hci_dev *floss_get_hdev(u16 hci_id)
 	return hdev;
 }
 
-static int __floss_get_sco_codec_capabilities(struct sock *sk,
-					      struct hci_dev *hdev,
-					      void *data, u16 data_len,
-					      u16 opcode)
+static int floss_get_sco_codec_capabilities(struct sock *sk,
+					    struct hci_dev *hdev,
+					    void *data, u16 data_len)
 {
 	struct mgmt_cp_get_codec_capabilities *cp = data;
 	struct mgmt_rp_get_codec_capabilities *rp;
+	struct codec_list *c;
 	int i, num_rp_codecs;
 	int err;
 	size_t total_size = sizeof(struct mgmt_rp_get_codec_capabilities);
@@ -9299,8 +9299,7 @@ static int __floss_get_sco_codec_capabilities(struct sock *sk,
 	if (!hdev)
 		return -EINVAL;
 
-	wbs_supported = test_bit(HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED,
-				 &hdev->quirks);
+	wbs_supported = test_bit(HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED, &hdev->quirks);
 
 	if (MGMT_GET_SCO_CODEC_CAPABILITIES_SIZE + cp->num_codecs != data_len)
 		return -EINVAL;
@@ -9315,6 +9314,20 @@ static int __floss_get_sco_codec_capabilities(struct sock *sk,
 			if (wbs_supported)
 				total_size += sizeof(struct mgmt_bt_codec);
 			break;
+		case MGMT_SCO_CODEC_MSBC:
+			hci_dev_lock(hdev);
+			list_for_each_entry(c, &hdev->local_codecs, list) {
+				/* 0x01 - HCI Transport (Codec supported over BR/EDR SCO and eSCO)
+				 * 0x05 - mSBC Codec ID
+				 */
+				if (c->transport != 0x01 || c->id != 0x05)
+					continue;
+
+				total_size += sizeof(struct mgmt_bt_codec) + c->caps->len;
+				break;
+			}
+			hci_dev_unlock(hdev);
+			break;
 		default:
 			bt_dev_dbg(hdev, "Unknown codec %d", cp->codecs[i]);
 			break;
@@ -9326,7 +9339,6 @@ static int __floss_get_sco_codec_capabilities(struct sock *sk,
 		return -ENOMEM;
 
 	rp->hci_id = hdev->id;
-	rp->offload_capable = false;
 
 	// Copy codec information to return.
 	ptr = (u8 *)rp->codecs;
@@ -9336,16 +9348,40 @@ static int __floss_get_sco_codec_capabilities(struct sock *sk,
 		switch (cp->codecs[i]) {
 		case MGMT_SCO_CODEC_CVSD:
 			rc->codec = cp->codecs[i];
-			ptr += sizeof(*rc);
+			ptr += sizeof(struct mgmt_bt_codec);
 			num_rp_codecs++;
 			break;
 		case MGMT_SCO_CODEC_MSBC_TRANSPARENT:
 			if (wbs_supported) {
 				rc->codec = cp->codecs[i];
 				rc->packet_size = hdev->wbs_pkt_len;
-				ptr += sizeof(*rc);
+				ptr += sizeof(struct mgmt_bt_codec);
 				num_rp_codecs++;
 			}
+			break;
+		case MGMT_SCO_CODEC_MSBC:
+			hci_dev_lock(hdev);
+			list_for_each_entry(c, &hdev->local_codecs, list) {
+				if (c->transport != 0x01 || c->id != 0x05)
+					continue;
+
+				/* Need to read the support from the controller and then assign
+				 * to TRUE for now by default enable it as TRUE
+				 */
+				rp->offload_capable = true;
+
+				if (hdev->get_data_path_id)
+					hdev->get_data_path_id(hdev, &rc->data_path);
+
+				rc->codec = cp->codecs[i];
+				rc->packet_size = c->len;
+				rc->data_length = c->caps->len;
+				memcpy(rc->data, c->caps, c->caps->len);
+				ptr += sizeof(struct mgmt_bt_codec) + c->caps->len;
+				num_rp_codecs++;
+				break;
+			}
+			hci_dev_unlock(hdev);
 			break;
 		default:
 			break;
@@ -9355,27 +9391,12 @@ static int __floss_get_sco_codec_capabilities(struct sock *sk,
 	// Only return the number of codecs actually written
 	rp->num_codecs = num_rp_codecs;
 
-	err = mgmt_cmd_complete(sk, MGMT_INDEX_NONE, opcode,
+	err = mgmt_cmd_complete(sk, MGMT_INDEX_NONE,
+				MGMT_OP_GET_SCO_CODEC_CAPABILITIES,
 				MGMT_STATUS_SUCCESS, rp, total_size);
 	kfree(rp);
 
 	return err;
-}
-
-static int floss_get_sco_codec_capabilities_old(struct sock *sk,
-						struct hci_dev *hdev,
-						void *data, u16 data_len)
-{
-	return __floss_get_sco_codec_capabilities(sk, hdev, data, data_len,
-				MGMT_OP_GET_SCO_CODEC_CAPABILITIES_OLD);
-}
-
-static int floss_get_sco_codec_capabilities(struct sock *sk,
-					    struct hci_dev *hdev,
-					    void *data, u16 data_len)
-{
-	return __floss_get_sco_codec_capabilities(sk, hdev, data, data_len,
-				MGMT_OP_GET_SCO_CODEC_CAPABILITIES);
 }
 
 static int floss_notify_sco_connection_change(struct sock *sk,
@@ -9421,8 +9442,13 @@ static int floss_notify_sco_connection_change(struct sock *sk,
 	return 0;
 }
 
-static int __floss_get_vs_opcode(struct sock *sk, struct hci_dev *hdev,
-				 void *data, u16 data_len, u16 opcode)
+/* The user space provides the value of vendor_specification. For example,
+ * the user space wants to query what the opcode for MSFT extension is,
+ * It provides MGMT_VS_OPCODE_MSFT as vendor_specification. For now,
+ * the only possible value of vendor_specification is MGMT_VS_OPCODE_MSFT.
+ */
+static int floss_get_vs_opcode(struct sock *sk, struct hci_dev *hdev,
+			       void *data, u16 data_len)
 {
 	struct mgmt_cp_get_vs_opcode *cp = data;
 	struct mgmt_rp_get_vs_opcode rp;
@@ -9441,7 +9467,7 @@ static int __floss_get_vs_opcode(struct sock *sk, struct hci_dev *hdev,
 	// Make sure we have a valid hdev.
 	if (!hdev) {
 		BT_INFO("Cannot find hdev 0x%4.4x", hci_id);
-		return mgmt_cmd_status(sk, hci_id, opcode,
+		return mgmt_cmd_status(sk, hci_id, MGMT_OP_GET_VS_OPCODE,
 				       MGMT_STATUS_INVALID_INDEX);
 	}
 	rp.hci_id = hdev->id;
@@ -9456,28 +9482,10 @@ static int __floss_get_vs_opcode(struct sock *sk, struct hci_dev *hdev,
 		rp.opcode = HCI_OP_NOP;
 	}
 
-	err = mgmt_cmd_complete(sk, MGMT_INDEX_NONE, opcode,
+	err = mgmt_cmd_complete(sk, MGMT_INDEX_NONE,
+				MGMT_OP_GET_VS_OPCODE,
 				MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
 	return err;
-}
-
-static int floss_get_vs_opcode_old(struct sock *sk, struct hci_dev *hdev,
-				   void *data, u16 data_len)
-{
-	return __floss_get_vs_opcode(sk, hdev, data, data_len,
-				     MGMT_OP_GET_VS_OPCODE_OLD);
-}
-
-/* The user space provides the value of vendor_specification. For example,
- * the user space wants to query what the opcode for MSFT extension is,
- * It provides MGMT_VS_OPCODE_MSFT as vendor_specification. For now,
- * the only possible value of vendor_specification is MGMT_VS_OPCODE_MSFT.
- */
-static int floss_get_vs_opcode(struct sock *sk, struct hci_dev *hdev,
-			       void *data, u16 data_len)
-{
-	return __floss_get_vs_opcode(sk, hdev, data, data_len,
-				     MGMT_OP_GET_VS_OPCODE);
 }
 
 static const struct hci_mgmt_handler mgmt_handlers[] = {
@@ -9611,19 +9619,6 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ mesh_send,               MGMT_MESH_SEND_SIZE,
 						HCI_MGMT_VAR_LEN },
 	{ mesh_send_cancel,        MGMT_MESH_SEND_CANCEL_SIZE },
-
-	{ floss_get_sco_codec_capabilities_old,
-				   MGMT_GET_SCO_CODEC_CAPABILITIES_SIZE,
-						HCI_MGMT_NO_HDEV |
-						HCI_MGMT_UNTRUSTED |
-						HCI_MGMT_VAR_LEN },
-	{ floss_notify_sco_connection_change,
-				   MGMT_NOTIFY_SCO_CONNECTION_CHANGE_SIZE,
-						HCI_MGMT_NO_HDEV |
-						HCI_MGMT_UNTRUSTED },
-	{ floss_get_vs_opcode_old, MGMT_GET_VS_OPCODE_SIZE,
-						HCI_MGMT_NO_HDEV |
-						HCI_MGMT_UNTRUSTED },
 
 	/* CHROMIUM specific floss handlers start here.
 	 *
