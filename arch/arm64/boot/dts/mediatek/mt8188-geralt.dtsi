@@ -77,6 +77,12 @@
 		kaslr-seed = <0 0>;
 	};
 
+	dmic-codec {
+		compatible = "dmic-codec";
+		num-channels = <2>;
+		wakeup-delay-ms = <50>;
+	};
+
 	dx_pp3300: regulator3 {
 		compatible = "regulator-fixed";
 		regulator-name = "dx_pp3300";
@@ -165,6 +171,12 @@
 		enable-active-high;
 		gpio = <&pio 150 GPIO_ACTIVE_HIGH>;
 	};
+};
+
+&afe {
+	mediatek,etdm-out1-cowork-source = <0>; /* in1 */
+	mediatek,etdm-in2-cowork-source = <3>; /* out2 */
+	status = "okay";
 };
 
 &auxadc {
@@ -320,6 +332,62 @@
 	pinctrl-0 = <&i2c0_pin>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	nau8825: nau8825@1a {
+		#sound-dai-cells = <0>;
+		compatible = "nuvoton,nau8825";
+		reg = <0x1a>;
+		interrupt-parent = <&pio>;
+		interrupts = <108 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&nau8825_pins_default>;
+
+		nuvoton,jkdet-enable;
+		nuvoton,jkdet-polarity = <1>;
+		nuvoton,vref-impedance = <2>;
+		nuvoton,micbias-voltage = <6>;
+		nuvoton,sar-threshold-num = <4>;
+		nuvoton,sar-threshold = <0xc 0x1e 0x38 0x60>;
+		nuvoton,sar-hysteresis = <1>;
+		nuvoton,sar-voltage = <0>;
+		nuvoton,sar-compare-time = <0>;
+		nuvoton,sar-sampling-time = <0>;
+		nuvoton,short-key-debounce = <2>;
+		nuvoton,jack-insert-debounce = <7>;
+		nuvoton,jack-eject-debounce = <7>;
+		status = "okay";
+	};
+
+	max98390_rr: max98390@38 {
+		#sound-dai-cells = <0>;
+		compatible = "maxim,max98390";
+		reg = <0x38>;
+		reset-gpios = <&pio 118 1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&max98390_pins_default>;
+		status = "okay";
+	};
+
+	max98390_rl: max98390@39 {
+		#sound-dai-cells = <0>;
+		compatible = "maxim,max98390";
+		reg = <0x39>;
+		status = "okay";
+	};
+
+	max98390_fr: max98390@3A {
+		#sound-dai-cells = <0>;
+		compatible = "maxim,max98390";
+		reg = <0x3A>;
+		status = "okay";
+	};
+
+	max98390_fl: max98390@3B {
+		#sound-dai-cells = <0>;
+		compatible = "maxim,max98390";
+		reg = <0x3B>;
+		status = "okay";
+	};
 };
 
 &i2c1 {
@@ -429,6 +497,12 @@
 	vmmc-supply = <&mt6359_vemc_1_ldo_reg>;
 	vqmmc-supply = <&mt6359_vufs_ldo_reg>;
 	non-removable;
+};
+
+&mt6359codec {
+	mediatek,dmic-mode = <1>; /* one-wire */
+	mediatek,mic-type-0 = <2>; /* DMIC */
+	mediatek,mic-type-2 = <2>; /* DMIC */
 };
 
 &mt6359_vcore_buck_reg {
@@ -679,6 +753,25 @@
 		};
 	};
 
+	aud_pins_default: audiodefault {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_O_I2SO1_D0>,
+				 <PINMUX_GPIO101__FUNC_O_AUD_CLK_MOSI>,
+				 <PINMUX_GPIO102__FUNC_O_AUD_SYNC_MOSI>,
+				 <PINMUX_GPIO103__FUNC_O_AUD_DAT_MOSI0>,
+				 <PINMUX_GPIO104__FUNC_O_AUD_DAT_MOSI1>,
+				 <PINMUX_GPIO105__FUNC_I0_AUD_DAT_MISO0>,
+				 <PINMUX_GPIO106__FUNC_I0_AUD_DAT_MISO1>,
+				 <PINMUX_GPIO110__FUNC_I0_I2SIN_D0>,
+				 <PINMUX_GPIO113__FUNC_B0_TDMIN_BCK>,
+				 <PINMUX_GPIO115__FUNC_B0_I2SO2_BCK>,
+				 <PINMUX_GPIO116__FUNC_B0_I2SO2_WS>,
+				 <PINMUX_GPIO117__FUNC_O_I2SO2_D0>,
+				 <PINMUX_GPIO119__FUNC_B0_TDMIN_LRCK>,
+				 <PINMUX_GPIO120__FUNC_I0_TDMIN_DI>;
+		};
+	};
+
 	avdd_lcd_en: avdd-lcd-en {
 		pins1 {
 			pinmux = <PINMUX_GPIO3__FUNC_B_GPIO3>;
@@ -799,6 +892,12 @@
 		};
 	};
 
+	max98390_pins_default: max98390_rst {
+		pins_rst {
+			pinmux = <PINMUX_GPIO111__FUNC_B_GPIO111>;
+		};
+	};
+
 	mmc0_pins_default: mmc0default {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO161__FUNC_B1_MSDC0_DAT0>,
@@ -860,6 +959,14 @@
 			pinmux = <PINMUX_GPIO155__FUNC_O_MSDC0_RSTB>;
 			drive-strength = <MTK_DRIVE_8mA>;
 			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
+		};
+	};
+
+	nau8825_pins_default: nau8825_irq {
+		pins-irq {
+			pinmux = <PINMUX_GPIO108__FUNC_B_GPIO108>;
+			input-enable;
+			bias-pull-up;
 		};
 	};
 
@@ -981,6 +1088,52 @@
 	pinctrl-0 = <&scp_pins>;
 	memory-region = <&scp_mem_reserved>;
 	status = "okay";
+};
+
+&sound {
+	compatible = "mediatek,mt8188-nau8825";
+	model = "mt8188_m98390_8825";
+	pinctrl-names = "default";
+	pinctrl-0 = <&aud_pins_default>;
+	audio-routing =
+		"Headphone", "HPOL",
+		"Headphone", "HPOR",
+		"MIC", "Headset Mic";
+	status = "okay";
+
+	dai-link-0 {
+		link-name = "ETDM2_OUT_BE";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&nau8825>;
+		};
+	};
+
+	dai-link-1 {
+		link-name = "ETDM2_IN_BE";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&nau8825>;
+		};
+	};
+
+	dai-link-2 {
+		link-name = "ETDM1_OUT_BE";
+		dai-format = "dsp_b";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&max98390_rr>,
+				    <&max98390_rl>,
+				    <&max98390_fr>,
+				    <&max98390_fl>;
+		};
+	};
+
+	dai-link-3 {
+		link-name = "ETDM1_IN_BE";
+		dai-format = "dsp_b";
+		mediatek,clk-provider = "cpu";
+	};
 };
 
 &spi0 {
