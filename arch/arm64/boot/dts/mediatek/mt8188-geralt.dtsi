@@ -1168,6 +1168,7 @@
 };
 
 &scp {
+	firmware-name = "mediatek/mt8188/scp.img";
 	pinctrl-names = "default";
 	pinctrl-0 = <&scp_pins>;
 	memory-region = <&scp_mem_reserved>;
