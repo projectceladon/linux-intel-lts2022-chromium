@@ -108,6 +108,7 @@
 	pcie_3v3_en: pcie-3v3-en-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "pcie_3v3_en";
+		regulator-always-on;
 		gpio = <&pio 12 0>;
 		enable-active-high;
 	};
