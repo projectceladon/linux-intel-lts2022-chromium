@@ -445,6 +445,10 @@
 	regulator-max-microvolt = <550000>;
 };
 
+&mt6359_vio28_ldo_reg {
+	/delete-property/ regulator-always-on;
+};
+
 &mt6359_vm18_ldo_reg {
 	/delete-property/ regulator-always-on;
 };
