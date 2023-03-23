@@ -1209,6 +1209,14 @@
 		dai-format = "dsp_b";
 		mediatek,clk-provider = "cpu";
 	};
+
+	dai-link-4 {
+		link-name = "DPTX_BE";
+		codec {
+			sound-dai = <&dp_tx>;
+		};
+
+	};
 };
 
 &spi0 {

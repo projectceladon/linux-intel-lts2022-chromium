@@ -3070,6 +3070,7 @@
 		};
 
 		dp_tx: dp-tx@1c600000 {
+			#sound-dai-cells = <0>;
 			compatible = "mediatek,mt8188-dp-tx";
 			reg = <0 0x1c600000 0 0x8000>;
 			max-lanes = <4>;
