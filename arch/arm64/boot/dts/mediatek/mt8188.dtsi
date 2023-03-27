@@ -991,7 +991,7 @@
 
 						vdec1@MT8188_POWER_DOMAIN_VDEC1 {
 							reg = <MT8188_POWER_DOMAIN_VDEC1>;
-							clocks = <&vdecsys CLK_VDE2_LARB1>;
+							clocks = <&vdecsys CLK_VDEC2_LARB1>;
 							clock-names = "vdec1-0";
 							mediatek,infracfg = <&infracfg_ao>;
 							#power-domain-cells = <0>;
@@ -999,7 +999,7 @@
 
 						vdec0@MT8188_POWER_DOMAIN_VDEC0 {
 							reg = <MT8188_POWER_DOMAIN_VDEC0>;
-							clocks = <&vdecsys_soc CLK_VDE1_SOC_LARB1>;
+							clocks = <&vdecsys_soc CLK_VDEC1_SOC_LARB1>;
 							clock-names = "vdec0-0";
 							mediatek,infracfg = <&infracfg_ao>;
 							#power-domain-cells = <0>;
@@ -1095,10 +1095,10 @@
 
 						venc@MT8188_POWER_DOMAIN_VENC {
 							reg = <MT8188_POWER_DOMAIN_VENC>;
-							clocks = <&vencsys CLK_VEN1_CKE0_LARB>,
-								 <&vencsys CLK_VEN1_CKE1_VENC>,
-								 <&vencsys CLK_VEN1_CKE5_GALS>,
-								 <&vencsys CLK_VEN1_CKE6_GALS_SRAM>;
+							clocks = <&vencsys CLK_VENC1_LARB>,
+								 <&vencsys CLK_VENC1_VENC>,
+								 <&vencsys CLK_VENC1_GALS>,
+								 <&vencsys CLK_VENC1_GALS_SRAM>;
 							clock-names = "venc-0", "venc-1", "venc-2", "venc-3";
 							mediatek,infracfg = <&infracfg_ao>;
 							#power-domain-cells = <0>;
@@ -1916,7 +1916,7 @@
 			interrupt-names = "JOB", "MMU", "GPU";
 			clocks = <&topckgen CLK_TOP_MFG_CK_FAST_REF>,
 				 <&apmixedsys CLK_APMIXED_MFGPLL>,
-				 <&topckgen CLK_TOP_MFGPLL>,
+				 <&apmixedsys CLK_APMIXED_MFGPLL>,
 				 <&topckgen CLK_TOP_MFG_CORE_TMP>,
 				 <&mfgcfg CLK_MFGCFG_BG3D>;
 			clock-names = "clk_mux",
@@ -2311,8 +2311,8 @@
 					 <&vpp_iommu M4U_PORT_L23_HW_VDEC_UFO_ENC_EXT>,
 					 <&vpp_iommu M4U_PORT_L23_HW_VDEC_UFO_ENC_EXT_C>,
 					 <&vpp_iommu M4U_PORT_L23_HW_VDEC_MC_EXT_C>;
-				clocks = <&vdecsys_soc CLK_VDE1_SOC_VDEC>,
-					 <&vdecsys_soc CLK_VDE1_SOC_LAT>;
+				clocks = <&vdecsys_soc CLK_VDEC1_SOC_VDEC>,
+					 <&vdecsys_soc CLK_VDEC1_SOC_LAT>;
 				clock-names = "vdec-soc-vdec", "vdec-soc-lat";
 				power-domains = <&spm MT8188_POWER_DOMAIN_VDEC0>;
 			};
@@ -2332,8 +2332,8 @@
 					 <&vdo_iommu M4U_PORT_L21_HW_VDEC_VLD2_EXT>,
 					 <&vdo_iommu M4U_PORT_L21_HW_VDEC_AVC_MV_EXT>,
 					 <&vdo_iommu M4U_PORT_L21_HW_VDEC_UFO_EXT_C>;
-				clocks = <&vdecsys CLK_VDE2_VDEC>,
-					 <&vdecsys CLK_VDE2_LAT>;
+				clocks = <&vdecsys CLK_VDEC2_VDEC>,
+					 <&vdecsys CLK_VDEC2_LAT>;
 				clock-names = "vdec-vdec", "vdec-lat";
 				power-domains = <&spm MT8188_POWER_DOMAIN_VDEC1>;
 			};
@@ -2344,8 +2344,8 @@
 			reg = <0 0x1800d000 0 0x1000>;
 			mediatek,larb-id = <SMI_L23_ID>;
 			mediatek,smi = <&vpp_smi_common>;
-			clocks = <&vdecsys_soc CLK_VDE1_SOC_LARB1>,
-				 <&vdecsys_soc CLK_VDE1_SOC_LARB1>;
+			clocks = <&vdecsys_soc CLK_VDEC1_SOC_LARB1>,
+				 <&vdecsys_soc CLK_VDEC1_SOC_LARB1>;
 			clock-names = "apb", "smi";
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDEC0>;
 		};
@@ -2361,8 +2361,8 @@
 			reg = <0 0x1802e000 0 0x1000>;
 			mediatek,larb-id = <SMI_L21_ID>;
 			mediatek,smi = <&vdo_smi_common>;
-			clocks = <&vdecsys CLK_VDE2_LARB1>,
-				 <&vdecsys CLK_VDE2_LARB1>;
+			clocks = <&vdecsys CLK_VDEC2_LARB1>,
+				 <&vdecsys CLK_VDEC2_LARB1>;
 			clock-names = "apb", "smi";
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDEC1>;
 		};
@@ -2384,8 +2384,8 @@
 			reg = <0 0x1a010000 0 0x1000>;
 			mediatek,larb-id = <SMI_L19_ID>;
 			mediatek,smi = <&vdo_smi_common>;
-			clocks = <&vencsys CLK_VEN1_CKE1_VENC>,
-				 <&vencsys CLK_VEN1_CKE1_VENC>;
+			clocks = <&vencsys CLK_VENC1_VENC>,
+				 <&vencsys CLK_VENC1_VENC>;
 			clock-names = "apb", "smi";
 			power-domains = <&spm MT8188_POWER_DOMAIN_VENC>;
 		};
@@ -2406,7 +2406,7 @@
 				 <&vdo_iommu M4U_PORT_L19_VENC_SUB_R_LUMA>;
 			interrupts = <GIC_SPI 353 IRQ_TYPE_LEVEL_HIGH 0>;
 			mediatek,scp = <&scp>;
-			clocks = <&vencsys CLK_VEN1_CKE1_VENC>;
+			clocks = <&vencsys CLK_VENC1_VENC>;
 			clock-names = "venc_clk";
 			assigned-clocks = <&topckgen CLK_TOP_VENC>;
 			assigned-clock-parents = <&topckgen CLK_TOP_UNIVPLL_D4>;
@@ -2426,7 +2426,7 @@
 				 <&vdo_iommu M4U_PORT_L19_JPGENC_Q_TABLE>,
 				 <&vdo_iommu M4U_PORT_L19_JPGENC_BSDMA>;
 			interrupts = <GIC_SPI 354 IRQ_TYPE_LEVEL_HIGH 0>;
-			clocks = <&vencsys CLK_VEN1_CKE2_JPGENC>;
+			clocks = <&vencsys CLK_VENC1_JPGENC>;
 			clock-names = "jpgenc";
 			power-domains = <&spm MT8188_POWER_DOMAIN_VENC>;
 		};
@@ -2443,8 +2443,8 @@
 				 <&vdo_iommu M4U_PORT_L19_JPGDEC_HUFF_OFFSET_1>,
 				 <&vdo_iommu M4U_PORT_L19_JPGDEC_HUFF_OFFSET_0>;
 			interrupts = <GIC_SPI 355 IRQ_TYPE_LEVEL_HIGH 0>;
-			clocks = <&vencsys CLK_VEN1_CKE0_LARB>,
-				 <&vencsys CLK_VEN1_CKE3_JPGDEC>;
+			clocks = <&vencsys CLK_VENC1_LARB>,
+				 <&vencsys CLK_VENC1_JPGDEC>;
 			clock-names = "jpgdec-smi", "jpgdec";
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDEC0>;
 		};
