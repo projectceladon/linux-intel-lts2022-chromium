@@ -151,6 +151,7 @@
 		pinctrl-0 = <&panel_pins_default>;
 		pp1800-supply = <&mt6359_vm18_ldo_reg>;
 		backlight = <&backlight_lcd1>;
+		rotation = <270>;
 		status = "okay";
 
 		port {
