@@ -1015,6 +1015,12 @@ struct intel_cx0pll_state {
 	bool ssc_enabled;
 };
 
+struct intel_csc_matrix {
+	u16 coeff[9];
+	u16 preoff[3];
+	u16 postoff[3];
+};
+
 struct intel_crtc_state {
 	/*
 	 * uapi (drm) state. This is the software state shown to userspace.
