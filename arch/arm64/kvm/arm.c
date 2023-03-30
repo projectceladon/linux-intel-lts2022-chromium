@@ -232,6 +232,7 @@ int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
 	case KVM_CAP_GET_CUR_CPUFREQ:
 	case KVM_CAP_UTIL_HINT:
 	case KVM_CAP_GET_CPUFREQ_TBL:
+	case KVM_CAP_COUNTER_OFFSET:
 		r = 1;
 		break;
 	case KVM_CAP_SET_GUEST_DEBUG2:
@@ -1505,6 +1506,13 @@ long kvm_arch_vm_ioctl(struct file *filp,
 		if (copy_from_user(&copy_tags, argp, sizeof(copy_tags)))
 			return -EFAULT;
 		return kvm_vm_ioctl_mte_copy_tags(kvm, &copy_tags);
+	}
+	case KVM_ARM_SET_COUNTER_OFFSET: {
+		struct kvm_arm_counter_offset offset;
+
+		if (copy_from_user(&offset, argp, sizeof(offset)))
+			return -EFAULT;
+		return kvm_vm_ioctl_set_counter_offset(kvm, &offset);
 	}
 	default:
 		return -EINVAL;
