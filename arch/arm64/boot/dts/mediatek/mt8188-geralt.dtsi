@@ -36,6 +36,7 @@
 		enable-active-high;
 		pinctrl-names = "default";
 		pinctrl-0 = <&avee_lcd_en>;
+		regulator-enable-ramp-delay = <10000>;
 	};
 
 	backlight_lcd0: backlight_lcd0 {
