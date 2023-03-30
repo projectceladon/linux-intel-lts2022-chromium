@@ -462,6 +462,18 @@
 	pinctrl-0 = <&i2c3_pin>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	ap_sar_sensor: proximity@28 {
+		compatible = "semtech,sx9324";
+		reg = <0x28>;
+		#io-channel-cells = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sar_sensor_pins>;
+		interrupt-parent = <&pio>;
+		interrupts = <88 IRQ_TYPE_LEVEL_LOW>;
+		vdd-supply = <&mt6359_vio18_ldo_reg>;
+		svdd-supply = <&mt6359_vio18_ldo_reg>;
+	};
 };
 
 &i2c4 {
@@ -1096,6 +1108,14 @@
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO30__FUNC_O_DISP_PWM1>;
 			output-high;
+		};
+	};
+
+	sar_sensor_pins: sar-sensor-pins {
+		pins-irq {
+			pinmux = <PINMUX_GPIO88__FUNC_B_GPIO88>;
+			input-enable;
+			bias-pull-up;
 		};
 	};
 
