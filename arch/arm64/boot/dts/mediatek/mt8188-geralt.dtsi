@@ -156,6 +156,18 @@
 		#size-cells = <2>;
 		ranges;
 
+		adsp_dma_mem_reserved: adsp_dma_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x61000000 0 0x100000>;
+			no-map;
+		};
+
+		adsp_mem_reserved: adsp_mem_region {
+			compatible = "mediatek,adsp-reserved-memory";
+			no-map;
+			reg = <0 0x60000000 0 0xA00000>;
+		};
+
 		scp_mem_reserved: scp_mem_region {
 			compatible = "shared-dma-pool";
 			reg = <0 0x50000000 0 0x2900000>;
@@ -177,6 +189,14 @@
 		enable-active-high;
 		gpio = <&pio 150 GPIO_ACTIVE_HIGH>;
 	};
+};
+
+&adsp {
+	memory-region = <&adsp_dma_mem_reserved>,
+		<&adsp_mem_reserved>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&adsp_uart_pin>;
+	status = "okay";
 };
 
 &afe {
