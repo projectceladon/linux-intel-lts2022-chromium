@@ -337,6 +337,7 @@
 		pinctrl-0 = <&touchscreen_pins>;
 		vdd-supply = <&pp3300_s3>;
 		vddl-supply = <&mt6359_vm18_ldo_reg>;
+		post-power-on-delay-ms = <500>;
 		hid-descr-addr = <0x0001>;
 	};
 };
