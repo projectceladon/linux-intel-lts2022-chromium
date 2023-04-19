@@ -953,6 +953,8 @@
 		pins_bus {
 			pinmux = <PINMUX_GPIO60__FUNC_B1_SDA2>,
 				 <PINMUX_GPIO59__FUNC_B1_SCL2>;
+			bias-disable;
+			drive-strength = <MTK_DRIVE_12mA>;
 		};
 	};
 
