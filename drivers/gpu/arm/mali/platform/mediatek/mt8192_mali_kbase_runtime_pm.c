@@ -16,10 +16,8 @@
 
 /* list of clocks required by GPU */
 static const char * const mt8192_gpu_clks[] = {
-	"clk_mux",
-	"clk_main_parent",
-	"clk_sub_parent",
-	"subsys_mfg_cg",
+	/* Upstream binding only uses one clock */
+	NULL,
 };
 
 const struct mtk_hw_config mt8192_hw_config = {
@@ -46,7 +44,7 @@ const struct mtk_hw_config mt8192_hw_config = {
 };
 
 struct mtk_platform_context mt8192_platform_context = {
-	.manual_mux_reparent = true,
+	/* Since v6.1 all the auto-reparenting code has been merged */
 	.config = &mt8192_hw_config,
 };
 
