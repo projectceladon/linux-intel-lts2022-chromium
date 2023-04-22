@@ -14,8 +14,6 @@ config IWL7000
 	# things mac80211 selects
 	select CRYPTO
 	select CRYPTO_ARC4
-	select CRYPTO_USER_API_ENABLE_OBSOLETE
-	select CRYPTO_USER_API
 	select CRYPTO_AES
 	select CRYPTO_CCM
 	select CRC32
