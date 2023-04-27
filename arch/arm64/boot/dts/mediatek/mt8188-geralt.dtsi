@@ -355,9 +355,16 @@
 	clock-frequency = <400000>;
 	status = "okay";
 
-	nt50358a@3e {
-		compatible = "nt50358a";
-		reg = <0x3e>;
+	touchpad@56 {
+		status = "okay";
+		compatible = "hid-over-i2c";
+		reg = <0x56>;
+		interrupt-parent = <&pio>;
+		interrupts = <148 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpad_pins>;
+		hid-descr-addr = <0x0001>;
+		wakeup-source;
 	};
 };
 
@@ -720,6 +727,14 @@
 		pins-irq {
 			pinmux = <PINMUX_GPIO143__FUNC_B_GPIO143>;
 			input-enable;
+		};
+	};
+
+	touchpad_pins: touchpad-pins {
+		pins-irq {
+			pinmux = <PINMUX_GPIO148__FUNC_B_GPIO148>;
+			input-enable;
+			bias-disable;
 		};
 	};
 };
