@@ -177,7 +177,7 @@
 		afe_dma_mem_reserved: snd_dma_mem_region {
 			compatible = "shared-dma-pool";
 			no-map;
-			reg = <0 0x60000000 0 0x1000000>;
+			reg = <0 0x60F00000 0 0x100000>;
 		};
 	};
 
@@ -1168,7 +1168,10 @@
 &sound {
 	compatible = "mediatek,mt8188-nau8825";
 	model = "mt8188_m98390_8825";
-
+	mediatek,adsp = <&adsp>;
+	mediatek,dai-link = "DL10_FE", "ETDM1_IN_BE", "ETDM2_IN_BE",
+			"ETDM1_OUT_BE", "ETDM2_OUT_BE", "DPTX_BE", "UL_SRC_BE",
+			"AFE_SOF_DL2", "AFE_SOF_DL3", "AFE_SOF_UL4", "AFE_SOF_UL5";
 	pinctrl-names = "aud_etdm_hp_on",
 			"aud_etdm_hp_off",
 			"aud_etdm_spk_on",
@@ -1181,7 +1184,6 @@
 	pinctrl-3 = <&aud_etdm_spk_off>;
 	pinctrl-4 = <&aud_mtkaif_on>;
 	pinctrl-5 = <&aud_mtkaif_off>;
-
 	audio-routing =
 		"ETDM1_OUT", "ETDM_SPK_PIN",
 		"ETDM2_OUT", "ETDM_HP_PIN",
