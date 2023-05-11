@@ -138,6 +138,7 @@
 /* 2 bits: iommu type */
 #define MTK_IOMMU_TYPE_MM		(0x0 << 13)
 #define MTK_IOMMU_TYPE_INFRA		(0x1 << 13)
+#define MTK_IOMMU_TYPE_APU		(0x2 << 13)
 #define MTK_IOMMU_TYPE_MASK		(0x3 << 13)
 /* PM and clock always on. e.g. infra iommu */
 #define PM_CLK_AO			BIT(15)
@@ -335,6 +336,7 @@ static int mtk_iommu_hw_init(const struct mtk_iommu_data *data, unsigned int ban
 #define MTK_IOMMU_4GB_MODE_REMAP_BASE	 0x140000000UL
 
 static LIST_HEAD(m4ulist);	/* List all the M4U HWs */
+static LIST_HEAD(apulist);	/* List the apu iommu HWs */
 
 #define for_each_m4u(data, head)  list_for_each_entry(data, head, list)
 
@@ -358,6 +360,15 @@ static const struct mtk_iommu_iova_region mt8192_multi_dom[MT8192_MULTI_REGION_N
 
 	{ .iova_base = 0x240000000ULL,	.size = 0x4000000},	/* CCU0 */
 	{ .iova_base = 0x244000000ULL,	.size = 0x4000000},	/* CCU1 */
+	#endif
+};
+
+static const struct mtk_iommu_iova_region mt8188_multi_dom_apu[] = {
+	{ .iova_base = 0x200000ULL,	.size = SZ_512M},	/* APU SECURE */
+	#if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
+	{ .iova_base = SZ_1G,		.size = 0xc0000000},	/* APU CODE */
+	{ .iova_base = 0x70000000ULL,	.size = 0x12600000},	/* APU VLM */
+	{ .iova_base = SZ_4G,		.size = SZ_4G * 3},	/* APU VPU */
 	#endif
 };
 
@@ -851,7 +862,7 @@ static phys_addr_t mtk_iommu_iova_to_phys(struct iommu_domain *domain,
 static struct iommu_device *mtk_iommu_probe_device(struct device *dev)
 {
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
-	struct mtk_iommu_data *data;
+	struct mtk_iommu_data *data, *curdata;
 	struct device_link *link;
 	struct device *larbdev;
 	unsigned int larbid, larbidx, i;
@@ -861,34 +872,44 @@ static struct iommu_device *mtk_iommu_probe_device(struct device *dev)
 
 	data = dev_iommu_priv_get(dev);
 
-	if (!MTK_IOMMU_IS_TYPE(data->plat_data, MTK_IOMMU_TYPE_MM))
-		return &data->iommu;
-
-	/*
-	 * Link the consumer device with the smi-larb device(supplier).
-	 * The device that connects with each a larb is a independent HW.
-	 * All the ports in each a device should be in the same larbs.
-	 */
-	larbid = MTK_M4U_TO_LARB(fwspec->ids[0]);
-	if (larbid >= MTK_LARB_NR_MAX)
-		return ERR_PTR(-EINVAL);
-
-	for (i = 1; i < fwspec->num_ids; i++) {
-		larbidx = MTK_M4U_TO_LARB(fwspec->ids[i]);
-		if (larbid != larbidx) {
-			dev_err(dev, "Can only use one larb. Fail@larb%d-%d.\n",
-				larbid, larbidx);
+	if (MTK_IOMMU_IS_TYPE(data->plat_data, MTK_IOMMU_TYPE_MM)) {
+		/*
+		 * Link the consumer device with the smi-larb device(supplier).
+		 * The device that connects with each a larb is a independent HW.
+		 * All the ports in each a device should be in the same larbs.
+		 */
+		larbid = MTK_M4U_TO_LARB(fwspec->ids[0]);
+		if (larbid >= MTK_LARB_NR_MAX)
 			return ERR_PTR(-EINVAL);
+
+		for (i = 1; i < fwspec->num_ids; i++) {
+			larbidx = MTK_M4U_TO_LARB(fwspec->ids[i]);
+			if (larbid != larbidx) {
+				dev_err(dev, "Can only use one larb. Fail@larb%d-%d.\n",
+					larbid, larbidx);
+				return ERR_PTR(-EINVAL);
+			}
+		}
+		larbdev = data->larb_imu[larbid].dev;
+		if (!larbdev)
+			return ERR_PTR(-EINVAL);
+
+		link = device_link_add(dev, larbdev,
+				       DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
+		if (!link)
+			dev_err(dev, "Unable to link %s\n", dev_name(larbdev));
+	} else if (MTK_IOMMU_IS_TYPE(data->plat_data, MTK_IOMMU_TYPE_APU)) {
+		/*
+		 * The APU IOMMU HWs must work together. The consumer device
+		 * must connect with all the apu iommu HWs at the same time.
+		 */
+		for_each_m4u(curdata, data->hw_list) {
+			link = device_link_add(dev, curdata->dev,
+						DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
+			if (!link)
+				dev_err(dev, "Unable to link %s\n", dev_name(curdata->dev));
 		}
 	}
-	larbdev = data->larb_imu[larbid].dev;
-	if (!larbdev)
-		return ERR_PTR(-EINVAL);
-
-	link = device_link_add(dev, larbdev,
-			       DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
-	if (!link)
-		dev_err(dev, "Unable to link %s\n", dev_name(larbdev));
 	return &data->iommu;
 }
 
@@ -904,6 +925,10 @@ static void mtk_iommu_release_device(struct device *dev)
 		larbid = MTK_M4U_TO_LARB(fwspec->ids[0]);
 		larbdev = data->larb_imu[larbid].dev;
 		device_link_remove(dev, larbdev);
+	} else if (MTK_IOMMU_IS_TYPE(data->plat_data, MTK_IOMMU_TYPE_APU)) {
+		struct list_head *head = data->hw_list;
+		for_each_m4u(data, head)
+			device_link_remove(dev, data->dev);
 	}
 }
 
@@ -1604,6 +1629,27 @@ static const struct mtk_iommu_plat_data mt8186_data_mm = {
 	.iova_region_larb_msk = mt8186_larb_region_msk,
 };
 
+static const unsigned int mt8188_apu_region_msk[][MTK_LARB_NR_MAX] = {
+	[0] = {[0] = BIT(2), [1] = BIT(2)},	/* Region0: larb 0&1 APU_SECURE */
+	[1] = {[0] = BIT(0), [1] = BIT(0)},	/* Region1: larb 0&1 APU_CODE */
+	[2] = {[0] = BIT(3), [1] = BIT(3)},	/* Region2: larb 0&1 APU_VLM */
+	[3] = {[0] = BIT(1), [1] = BIT(1)},	/* Region3: larb 0&1 APU_DATA */
+};
+
+static const struct mtk_iommu_plat_data mt8188_data_apu = {
+	.m4u_plat       = M4U_MT8188,
+	.flags          = DCM_DISABLE | MTK_IOMMU_TYPE_APU |
+			  SHARE_PGTABLE | IOVA_34_EN | STD_AXI_MODE |
+			  PGTABLE_PA_35_EN,
+	.inv_sel_reg    = REG_MMU_INV_SEL_GEN2,
+	.hw_list        = &apulist,
+	.banks_num	= 1,
+	.banks_enable    = {true},
+	.iova_region    = mt8188_multi_dom_apu,
+	.iova_region_nr = ARRAY_SIZE(mt8188_multi_dom_apu),
+	.iova_region_larb_msk = mt8188_apu_region_msk,
+};
+
 static const struct mtk_iommu_plat_data mt8188_data_infra = {
 	.m4u_plat         = M4U_MT8188,
 	.flags            = WR_THROT_EN | DCM_DISABLE | STD_AXI_MODE | PM_CLK_AO |
@@ -1773,6 +1819,7 @@ static const struct of_device_id mtk_iommu_of_ids[] = {
 	{ .compatible = "mediatek,mt8173-m4u", .data = &mt8173_data},
 	{ .compatible = "mediatek,mt8183-m4u", .data = &mt8183_data},
 	{ .compatible = "mediatek,mt8186-iommu-mm",    .data = &mt8186_data_mm}, /* mm: m4u */
+	{ .compatible = "mediatek,mt8188-iommu-apu",   .data = &mt8188_data_apu},
 	{ .compatible = "mediatek,mt8188-iommu-infra", .data = &mt8188_data_infra},
 	{ .compatible = "mediatek,mt8188-iommu-vdo",   .data = &mt8188_data_vdo},
 	{ .compatible = "mediatek,mt8188-iommu-vpp",   .data = &mt8188_data_vpp},
