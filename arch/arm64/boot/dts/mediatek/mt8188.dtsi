@@ -2511,6 +2511,26 @@
 			#clock-cells = <1>;
 		};
 
+		iommu_apu0: iommu@19010000 {
+			compatible = "mediatek,mt8188-iommu-apu";
+			reg = <0 0x19010000 0 0x1000>;
+			interrupts = <GIC_SPI 433 IRQ_TYPE_LEVEL_HIGH 0>;
+			clocks = <&clk26m>;
+			clock-names = "bclk";
+			#iommu-cells = <1>;
+			status = "disabled";
+		};
+
+		iommu_apu1: iommu@19015000 {
+			compatible = "mediatek,mt8188-iommu-apu";
+			reg = <0 0x19015000 0 0x1000>;
+			interrupts = <GIC_SPI 438 IRQ_TYPE_LEVEL_HIGH 0>;
+			clocks = <&clk26m>;
+			clock-names = "bclk";
+			#iommu-cells = <1>;
+			status = "disabled";
+		};
+
 		vencsys: clock-controller@1a000000 {
 			compatible = "mediatek,mt8188-vencsys";
 			reg = <0 0x1a000000 0 0x1000>;
