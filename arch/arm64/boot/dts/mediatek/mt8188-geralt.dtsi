@@ -354,12 +354,13 @@
 		nuvoton,vref-impedance = <2>;
 		nuvoton,micbias-voltage = <6>;
 		nuvoton,sar-hysteresis = <1>;
-		nuvoton,sar-voltage = <0>;
+		nuvoton,sar-voltage = <6>;
 		nuvoton,sar-compare-time = <0>;
 		nuvoton,sar-sampling-time = <0>;
 		nuvoton,short-key-debounce = <2>;
 		nuvoton,jack-insert-debounce = <7>;
 		nuvoton,jack-eject-debounce = <7>;
+		nuvoton,adc-delay-ms = <300>;
 		status = "okay";
 	};
 
