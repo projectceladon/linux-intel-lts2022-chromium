@@ -189,6 +189,10 @@
 			no-map;
 		};
 
+		apu_reserve_memory: apu-reserve-memory {
+			reg = <0 0x55000000 0 0x1400000>;
+		};
+
 		afe_dma_mem_reserved: snd_dma_mem_region {
 			compatible = "shared-dma-pool";
 			no-map;
@@ -236,6 +240,23 @@
 	memory-region = <&afe_dma_mem_reserved>;
 	mediatek,etdm-out1-cowork-source = <0>; /* in1 */
 	mediatek,etdm-in2-cowork-source = <3>; /* out2 */
+	status = "okay";
+};
+
+&apu_top {
+	domain-supply = <&mt6359_vmodem_buck_reg>;
+};
+
+&apuspm {
+	vsram-supply = <&mt6359_vsram_md_ldo_reg>;
+	status = "okay";
+};
+
+&apusys_hw_logger {
+	status = "okay";
+};
+
+&apusys_rv {
 	status = "okay";
 };
 
@@ -546,6 +567,14 @@
 	domain-supply = <&mt6359_vproc1_buck_reg>;
 };
 
+&iommu_apu0 {
+	status = "okay";
+};
+
+&iommu_apu1 {
+	status = "okay";
+};
+
 &mfg0 {
 	domain-supply = <&mt6359_vproc2_buck_reg>;
 };
@@ -619,6 +648,11 @@
 	/delete-property/ regulator-always-on;
 };
 
+&mt6359_vmodem_buck_reg {
+	regulator-min-microvolt = <775000>;
+	regulator-max-microvolt = <775000>;
+};
+
 &mt6359_vpu_buck_reg {
 	regulator-always-on;
 };
@@ -627,12 +661,25 @@
 	regulator-always-on;
 };
 
+&mt6359_vsram_md_ldo_reg {
+	regulator-min-microvolt = <800000>;
+	regulator-max-microvolt = <800000>;
+};
+
 &mt6359_vufs_ldo_reg {
 	regulator-always-on;
 };
 
 &mt6359_vpa_buck_reg {
 	regulator-max-microvolt = <3100000>;
+};
+
+&mtk_apu_mem_code {
+	status = "okay";
+};
+
+&mtk_apu_mem_data {
+	status = "okay";
 };
 
 &nor_flash {
