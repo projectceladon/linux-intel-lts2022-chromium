@@ -362,6 +362,7 @@
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x38>;
+		sound-name-prefix = "Rear Right";
 		reset-gpios = <&pio 118 1>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&max98390_pins_default>;
@@ -372,6 +373,7 @@
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x39>;
+		sound-name-prefix = "Rear Left";
 		status = "okay";
 	};
 
@@ -379,6 +381,7 @@
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x3A>;
+		sound-name-prefix = "Front Left";
 		status = "okay";
 	};
 
@@ -386,6 +389,7 @@
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x3B>;
+		sound-name-prefix = "Front Right";
 		status = "okay";
 	};
 };
@@ -1096,9 +1100,13 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&aud_pins_default>;
 	audio-routing =
-		"Headphone", "HPOL",
-		"Headphone", "HPOR",
-		"MIC", "Headset Mic";
+		"Headphone Jack", "HPOL",
+		"Headphone Jack", "HPOR",
+		"MIC", "Headset Mic",
+		"Left Spk", "Front Left BE_OUT",
+		"Right Spk", "Front Right BE_OUT",
+		"Rear Left Spk", "Rear Left BE_OUT",
+		"Rear Right Spk", "Rear Right BE_OUT";
 	status = "okay";
 
 	dai-link-0 {
