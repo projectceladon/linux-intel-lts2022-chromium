@@ -25,8 +25,7 @@ struct nlmsg_perm {
 	u32	perm;
 };
 
-static struct nlmsg_perm nlmsg_route_perms[] =
-{
+static struct nlmsg_perm nlmsg_route_perms[] = {
 	{ RTM_NEWLINK,		NETLINK_ROUTE_SOCKET__NLMSG_WRITE },
 	{ RTM_DELLINK,		NETLINK_ROUTE_SOCKET__NLMSG_WRITE },
 	{ RTM_GETLINK,		NETLINK_ROUTE_SOCKET__NLMSG_READ  },
@@ -230,7 +229,7 @@ static void nlmsg_set_perm_for_type(u32 perm, u16 type)
 	}
 }
 
-/*
+/**
  * Use nlmsg_readpriv as the permission for RTM_GETLINK messages if the
  * netlink_route_getlink policy capability is set. Otherwise use nlmsg_read.
  * Similarly, use nlmsg_getneigh for RTM_GETNEIGH and RTM_GETNEIGHTBL if the

@@ -225,18 +225,18 @@ static inline bool selinux_policycap_genfs_seclabel_symlinks(void)
 	return READ_ONCE(state->policycap[POLICYDB_CAP_GENFS_SECLABEL_SYMLINKS]);
 }
 
-static inline bool selinux_android_nlroute_getlink(void)
-{
-	struct selinux_state *state = &selinux_state;
-
-	return state->android_netlink_route;
-}
-
 static inline bool selinux_policycap_ioctl_skip_cloexec(void)
 {
 	struct selinux_state *state = &selinux_state;
 
 	return READ_ONCE(state->policycap[POLICYDB_CAP_IOCTL_SKIP_CLOEXEC]);
+}
+
+static inline bool selinux_android_nlroute_getlink(void)
+{
+	struct selinux_state *state = &selinux_state;
+
+	return state->android_netlink_route;
 }
 
 static inline bool selinux_android_nlroute_getneigh(void)

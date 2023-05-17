@@ -1567,8 +1567,11 @@ static int android_setup(struct usb_gadget *gadget,
 		value = acc_ctrlrequest_composite(cdev, c);
 #endif
 
-	if (value < 0)
+	if (value < 0) {
+		spin_lock_irqsave(&gi->spinlock, flags);
 		value = composite_setup(gadget, c);
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+	}
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
@@ -1873,7 +1876,7 @@ static struct config_group *gadgets_make(
 		goto out_free_driver_name;
 
 	if (android_device_create(gi) < 0)
-		goto err;
+		goto out_free_driver_name;
 
 	return &gi->group;
 
