@@ -9,6 +9,7 @@
  */
 
 #include <linux/sched.h>
+#include <linux/vmalloc.h>
 #include <drm/drm_prime.h>
 #include <drm/drm_file.h>
 #include "evdi_drm_drv.h"

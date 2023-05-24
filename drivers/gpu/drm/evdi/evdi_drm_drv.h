@@ -26,7 +26,6 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_rect.h>
 #include <drm/drm_gem.h>
-#include <drm/drm_framebuffer.h>
 #include <linux/dma-resv.h>
 
 #include "evdi_debug.h"
