@@ -182,7 +182,7 @@ bool intel_hdcp2_capable(struct intel_connector *connector)
 
 	/* MEI/GSC interface is solid depending on which is used */
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	if (!i915->display.hdcp.comp_added ||  !i915->display.hdcp.master) {
+	if (!i915->display.hdcp.comp_added ||  !i915->display.hdcp.arbiter) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
 		return false;
 	}
@@ -1113,11 +1113,11 @@ hdcp2_prepare_ake_init(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1143,11 +1143,11 @@ hdcp2_verify_rx_cert_prepare_km(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1171,11 +1171,11 @@ static int hdcp2_verify_hprime(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1197,11 +1197,11 @@ hdcp2_store_pairing_info(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1224,11 +1224,11 @@ hdcp2_prepare_lc_init(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1251,11 +1251,11 @@ hdcp2_verify_lprime(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1277,11 +1277,11 @@ static int hdcp2_prepare_skey(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1306,11 +1306,11 @@ hdcp2_verify_rep_topology_prepare_ack(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1336,11 +1336,11 @@ hdcp2_verify_mprime(struct intel_connector *connector,
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1360,11 +1360,11 @@ static int hdcp2_authenticate_port(struct intel_connector *connector)
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -1384,11 +1384,11 @@ static int hdcp2_close_session(struct intel_connector *connector)
 {
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
-	struct i915_hdcp_master *arbiter;
+	struct i915_hdcp_arbiter *arbiter;
 	int ret;
 
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	arbiter = i915->display.hdcp.master;
+	arbiter = i915->display.hdcp.arbiter;
 
 	if (!arbiter || !arbiter->ops) {
 		mutex_unlock(&i915->display.hdcp.comp_mutex);
@@ -2104,8 +2104,8 @@ static int i915_hdcp_component_bind(struct device *i915_kdev,
 
 	drm_dbg(&i915->drm, "I915 HDCP comp bind\n");
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	i915->display.hdcp.master = (struct i915_hdcp_master *)data;
-	i915->display.hdcp.master->hdcp_dev = mei_kdev;
+	i915->display.hdcp.arbiter = (struct i915_hdcp_arbiter *)data;
+	i915->display.hdcp.arbiter->hdcp_dev = mei_kdev;
 	mutex_unlock(&i915->display.hdcp.comp_mutex);
 
 	return 0;
@@ -2118,7 +2118,7 @@ static void i915_hdcp_component_unbind(struct device *i915_kdev,
 
 	drm_dbg(&i915->drm, "I915 HDCP comp unbind\n");
 	mutex_lock(&i915->display.hdcp.comp_mutex);
-	i915->display.hdcp.master = NULL;
+	i915->display.hdcp.arbiter = NULL;
 	mutex_unlock(&i915->display.hdcp.comp_mutex);
 }
 
