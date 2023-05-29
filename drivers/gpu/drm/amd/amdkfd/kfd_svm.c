@@ -816,7 +816,7 @@ svm_range_is_same_attrs(struct kfd_process *p, struct svm_range *prange,
 		}
 	}
 
-	return true;
+	return !prange->is_error_flag;
 }
 
 /**
@@ -1698,6 +1698,7 @@ unlock_out:
 unreserve_out:
 	svm_range_unreserve_bos(ctx);
 
+	prange->is_error_flag = !!r;
 	if (!r)
 		prange->validate_timestamp = ktime_get_boottime();
 
