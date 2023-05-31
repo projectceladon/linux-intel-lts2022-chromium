@@ -419,6 +419,8 @@ int tpm_pm_suspend(struct device *dev)
 	if (!rc)
 		chip->is_suspended = true;
 suspended:
+	chip->flags |= TPM_CHIP_FLAG_SUSPENDED;
+
 	if (rc)
 		dev_err(dev, "Ignoring error %d while suspending\n", rc);
 	return 0;
@@ -437,6 +439,14 @@ int tpm_pm_resume(struct device *dev)
 		return -ENODEV;
 
 	chip->is_suspended = false;
+	chip->flags &= ~TPM_CHIP_FLAG_SUSPENDED;
+
+	/*
+	 * Guarantee that SUSPENDED is written last, so that hwrng does not
+	 * activate before the chip has been fully resumed.
+	 */
+	wmb();
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tpm_pm_resume);
