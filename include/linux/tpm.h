@@ -138,8 +138,6 @@ struct tpm_chip {
 	int dev_num;		/* /dev/tpm# */
 	unsigned long is_open;	/* only one allowed */
 
-	bool is_suspended;
-
 	char hwrng_name[64];
 	struct hwrng hwrng;
 
@@ -288,13 +286,15 @@ enum tpm2_cc_attrs {
 #define TPM_VID_ATML     0x1114
 
 enum tpm_chip_flags {
-	TPM_CHIP_FLAG_TPM2		= BIT(1),
-	TPM_CHIP_FLAG_IRQ		= BIT(2),
-	TPM_CHIP_FLAG_VIRTUAL		= BIT(3),
-	TPM_CHIP_FLAG_HAVE_TIMEOUTS	= BIT(4),
-	TPM_CHIP_FLAG_ALWAYS_POWERED	= BIT(5),
+	TPM_CHIP_FLAG_BOOTSTRAPPED		= BIT(0),
+	TPM_CHIP_FLAG_TPM2			= BIT(1),
+	TPM_CHIP_FLAG_IRQ			= BIT(2),
+	TPM_CHIP_FLAG_VIRTUAL			= BIT(3),
+	TPM_CHIP_FLAG_HAVE_TIMEOUTS		= BIT(4),
+	TPM_CHIP_FLAG_ALWAYS_POWERED		= BIT(5),
 	TPM_CHIP_FLAG_FIRMWARE_POWER_MANAGED	= BIT(6),
-	TPM_CHIP_FLAG_FIRMWARE_UPGRADE	= BIT(7),
+	TPM_CHIP_FLAG_FIRMWARE_UPGRADE		= BIT(7),
+	TPM_CHIP_FLAG_SUSPENDED			= BIT(8),
 };
 
 #define to_tpm_chip(d) container_of(d, struct tpm_chip, dev)

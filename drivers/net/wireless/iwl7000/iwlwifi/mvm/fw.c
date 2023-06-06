@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2022 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2023 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -485,40 +485,27 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	return 0;
 }
 
+static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
+				    struct iwl_phy_specific_cfg *phy_filters)
+{
 #ifdef CONFIG_ACPI
-static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
-				    struct iwl_phy_specific_cfg *phy_filters)
-{
-	/*
-	 * TODO: read specific phy config from BIOS
-	 * ACPI table for this feature has not been defined yet,
-	 * so for now we use hardcoded values.
-	 */
-
-	if (IWL_MVM_PHY_FILTER_CHAIN_A) {
-		phy_filters->filter_cfg_chain_a =
-			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_A);
-	}
-	if (IWL_MVM_PHY_FILTER_CHAIN_B) {
-		phy_filters->filter_cfg_chain_b =
-			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_B);
-	}
-	if (IWL_MVM_PHY_FILTER_CHAIN_C) {
-		phy_filters->filter_cfg_chain_c =
-			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_C);
-	}
-	if (IWL_MVM_PHY_FILTER_CHAIN_D) {
-		phy_filters->filter_cfg_chain_d =
-			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_D);
-	}
-}
-#else /* CONFIG_ACPI */
-
-static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
-				    struct iwl_phy_specific_cfg *phy_filters)
-{
-}
+	*phy_filters = mvm->phy_filters;
 #endif /* CONFIG_ACPI */
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (IWL_MVM_PHY_FILTER_CHAIN_A)
+		phy_filters->filter_cfg_chains[0] =
+			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_A);
+	if (IWL_MVM_PHY_FILTER_CHAIN_B)
+		phy_filters->filter_cfg_chains[1] =
+			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_B);
+	if (IWL_MVM_PHY_FILTER_CHAIN_C)
+		phy_filters->filter_cfg_chains[2] =
+			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_C);
+	if (IWL_MVM_PHY_FILTER_CHAIN_D)
+		phy_filters->filter_cfg_chains[3] =
+			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_D);
+#endif
+}
 
 #if defined(CONFIG_ACPI) && defined(CONFIG_EFI)
 static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
@@ -567,7 +554,6 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 	u32 cmd_id = PHY_CONFIGURATION_CMD;
 	struct iwl_phy_cfg_cmd_v3 phy_cfg_cmd;
 	enum iwl_ucode_type ucode_type = mvm->fwrt.cur_fw_img;
-	struct iwl_phy_specific_cfg phy_filters = {};
 	u8 cmd_ver;
 	size_t cmd_size;
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
@@ -627,11 +613,8 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 
 	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd_id,
 					IWL_FW_CMD_VER_UNKNOWN);
-	if (cmd_ver == 3) {
-		iwl_mvm_phy_filter_init(mvm, &phy_filters);
-		memcpy(&phy_cfg_cmd.phy_specific_cfg, &phy_filters,
-		       sizeof(struct iwl_phy_specific_cfg));
-	}
+	if (cmd_ver >= 3)
+		iwl_mvm_phy_filter_init(mvm, &phy_cfg_cmd.phy_specific_cfg);
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	override_mask = mvm->trans->dbg_cfg.MVM_CALIB_OVERRIDE_CONTROL;
@@ -716,6 +699,7 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm)
 	static const u16 init_complete[] = {
 		INIT_COMPLETE_NOTIF,
 	};
+	u32 sb_cfg;
 	int ret;
 
 	if (mvm->trans->cfg->tx_with_siso_diversity)
@@ -724,6 +708,12 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm)
 	lockdep_assert_held(&mvm->mutex);
 
 	mvm->rfkill_safe_init_done = false;
+
+	sb_cfg = iwl_read_umac_prph(mvm->trans, SB_MODIFY_CFG_FLAG);
+	/* if needed, we'll reset this on our way out later */
+	mvm->pldr_sync = !(sb_cfg & SB_CFG_RESIDES_IN_OTP_MASK);
+	if (mvm->pldr_sync && iwl_mei_pldr_req())
+		return -EBUSY;
 
 	iwl_init_notification_wait(&mvm->notif_wait,
 				   &init_wait,
@@ -738,6 +728,13 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm)
 	ret = iwl_mvm_load_ucode_wait_alive(mvm, IWL_UCODE_REGULAR);
 	if (ret) {
 		IWL_ERR(mvm, "Failed to start RT ucode: %d\n", ret);
+
+		/* if we needed reset then fail here, but notify and remove */
+		if (mvm->pldr_sync) {
+			iwl_mei_alive_notif(false);
+			iwl_trans_pcie_remove(mvm->trans, true);
+		}
+
 		goto error;
 	}
 	iwl_dbg_tlv_time_point(&mvm->fwrt, IWL_FW_INI_TIME_POINT_AFTER_ALIVE,
@@ -1306,7 +1303,7 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 				mvm->trans->dbg_cfg.tas_allowed);
 	} else
 #endif
-	if (!dmi_check_system(dmi_tas_approved_list)) {
+	if (!iwl_mvm_is_vendor_in_approved_list()) {
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor '%s' is not in the approved list, disabling TAS in US and Canada.\n",
 				dmi_get_system_info(DMI_SYS_VENDOR));
@@ -1504,6 +1501,8 @@ void iwl_mvm_get_acpi_tables(struct iwl_mvm *mvm)
 				/* we don't fail if the table is not available */
 		}
 	}
+
+	iwl_acpi_get_phy_filters(&mvm->fwrt, &mvm->phy_filters);
 }
 #else /* CONFIG_ACPI */
 
@@ -1682,18 +1681,12 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	struct ieee80211_channel *chan;
 	struct cfg80211_chan_def chandef;
 	struct ieee80211_supported_band *sband = NULL;
-	u32 sb_cfg;
 
 	lockdep_assert_held(&mvm->mutex);
 
 	ret = iwl_trans_start_hw(mvm->trans);
 	if (ret)
 		return ret;
-
-	sb_cfg = iwl_read_umac_prph(mvm->trans, SB_MODIFY_CFG_FLAG);
-	mvm->pldr_sync = !(sb_cfg & SB_CFG_RESIDES_IN_OTP_MASK);
-	if (mvm->pldr_sync && iwl_mei_pldr_req())
-		return -EBUSY;
 
 	ret = iwl_mvm_load_rt_fw(mvm);
 	if (ret) {
@@ -1750,6 +1743,8 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 			goto error;
 	}
 
+	iwl_mvm_lari_cfg(mvm);
+
 	/* Init RSS configuration */
 	ret = iwl_configure_rxq(&mvm->fwrt);
 	if (ret)
@@ -1792,7 +1787,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	 * internal aux station for all aux activities that don't
 	 * requires a dedicated data queue.
 	 */
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, ADD_STA, 0) < 12) {
+	if (!iwl_mvm_has_new_station_api(mvm->fw)) {
 		 /*
 		  * In old version the aux station uses mac id like other
 		  * station and not lmac id
@@ -1860,7 +1855,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	if (ret)
 		goto error;
 
-	iwl_mvm_lari_cfg(mvm);
 	/*
 	 * RTNL is not taken during Ct-kill, but we don't need to scan/Tx
 	 * anyway, so don't init MCC.
@@ -1908,7 +1902,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 					 len, &mvm->txp_cmd))
 			IWL_ERR(mvm, "failed to update TX power\n");
 	}
-
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
@@ -1997,7 +1990,7 @@ int iwl_mvm_load_d3_fw(struct iwl_mvm *mvm)
 		RCU_INIT_POINTER(mvm->fw_id_to_link_sta[i], NULL);
 	}
 
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, ADD_STA, 0) < 12) {
+	if (!iwl_mvm_has_new_station_api(mvm->fw)) {
 		/*
 		 * Add auxiliary station for scanning.
 		 * Newer versions of this command implies that the fw uses

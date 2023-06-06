@@ -6,18 +6,64 @@
 #include <linux/types.h>
 
 #include "gt/intel_gt.h"
+#include "gt/intel_gt_print.h"
 #include "intel_gsc_uc.h"
 #include "intel_gsc_fw.h"
 #include "i915_drv.h"
+#include "intel_gsc_proxy.h"
 
 static void gsc_work(struct work_struct *work)
 {
 	struct intel_gsc_uc *gsc = container_of(work, typeof(*gsc), work);
 	struct intel_gt *gt = gsc_uc_to_gt(gsc);
 	intel_wakeref_t wakeref;
+	u32 actions;
+	int ret;
 
-	with_intel_runtime_pm(gt->uncore->rpm, wakeref)
-		intel_gsc_uc_fw_upload(gsc);
+	wakeref = intel_runtime_pm_get(gt->uncore->rpm);
+
+	spin_lock_irq(gt->irq_lock);
+	actions = gsc->gsc_work_actions;
+	gsc->gsc_work_actions = 0;
+	spin_unlock_irq(gt->irq_lock);
+
+	if (actions & GSC_ACTION_FW_LOAD) {
+		ret = intel_gsc_uc_fw_upload(gsc);
+		if (ret == -EEXIST) /* skip proxy if not a new load */
+			actions &= ~GSC_ACTION_FW_LOAD;
+		else if (ret)
+			goto out_put;
+	}
+
+	if (actions & (GSC_ACTION_FW_LOAD | GSC_ACTION_SW_PROXY)) {
+		if (!intel_gsc_uc_fw_init_done(gsc)) {
+			gt_err(gt, "Proxy request received with GSC not loaded!\n");
+			goto out_put;
+		}
+
+		ret = intel_gsc_proxy_request_handler(gsc);
+		if (ret)
+			goto out_put;
+
+		/* mark the GSC FW init as done the first time we run this */
+		if (actions & GSC_ACTION_FW_LOAD) {
+			/*
+			 * If there is a proxy establishment error, the GSC might still
+			 * complete the request handling cleanly, so we need to check the
+			 * status register to check if the proxy init was actually successful
+			 */
+			if (intel_gsc_uc_fw_proxy_init_done(gsc)) {
+				drm_dbg(&gt->i915->drm, "GSC Proxy initialized\n");
+				intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_RUNNING);
+			} else {
+				drm_err(&gt->i915->drm,
+					"GSC status reports proxy init not complete\n");
+			}
+		}
+	}
+
+out_put:
+	intel_runtime_pm_put(gt->uncore->rpm, wakeref);
 }
 
 static bool gsc_engine_supported(struct intel_gt *gt)
@@ -42,6 +88,8 @@ static bool gsc_engine_supported(struct intel_gt *gt)
 
 void intel_gsc_uc_init_early(struct intel_gsc_uc *gsc)
 {
+	struct intel_gt *gt = gsc_uc_to_gt(gsc);
+
 	intel_uc_fw_init_early(&gsc->fw, INTEL_UC_FW_TYPE_GSC);
 	INIT_WORK(&gsc->work, gsc_work);
 
@@ -49,9 +97,15 @@ void intel_gsc_uc_init_early(struct intel_gsc_uc *gsc)
 	 * GT with it being not fully setup hence check device info's
 	 * engine mask
 	 */
-	if (!gsc_engine_supported(gsc_uc_to_gt(gsc))) {
+	if (!gsc_engine_supported(gt)) {
 		intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_NOT_SUPPORTED);
 		return;
+	}
+
+	gsc->wq = alloc_ordered_workqueue("i915_gsc", 0);
+	if (!gsc->wq) {
+		gt_err(gt, "failed to allocate WQ for GSC, disabling FW\n");
+		intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_NOT_SUPPORTED);
 	}
 }
 
@@ -59,7 +113,6 @@ int intel_gsc_uc_init(struct intel_gsc_uc *gsc)
 {
 	static struct lock_class_key gsc_lock;
 	struct intel_gt *gt = gsc_uc_to_gt(gsc);
-	struct drm_i915_private *i915 = gt->i915;
 	struct intel_engine_cs *engine = gt->engine[GSC0];
 	struct intel_context *ce;
 	struct i915_vma *vma;
@@ -81,13 +134,15 @@ int intel_gsc_uc_init(struct intel_gsc_uc *gsc)
 						I915_GEM_HWS_GSC_ADDR,
 						&gsc_lock, "gsc_context");
 	if (IS_ERR(ce)) {
-		drm_err(&gt->i915->drm,
-			"failed to create GSC CS ctx for FW communication\n");
+		gt_err(gt, "failed to create GSC CS ctx for FW communication\n");
 		err =  PTR_ERR(ce);
 		goto out_vma;
 	}
 
 	gsc->ce = ce;
+
+	/* if we fail to init proxy we still want to load GSC for PM */
+	intel_gsc_proxy_init(gsc);
 
 	intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_LOADABLE);
 
@@ -98,7 +153,7 @@ out_vma:
 out_fw:
 	intel_uc_fw_fini(&gsc->fw);
 out:
-	i915_probe_error(i915, "failed with %d\n", err);
+	gt_probe_error(gt, "GSC init failed %pe\n", ERR_PTR(err));
 	return err;
 }
 
@@ -108,6 +163,12 @@ void intel_gsc_uc_fini(struct intel_gsc_uc *gsc)
 		return;
 
 	flush_work(&gsc->work);
+	if (gsc->wq) {
+		destroy_workqueue(gsc->wq);
+		gsc->wq = NULL;
+	}
+
+	intel_gsc_proxy_fini(gsc);
 
 	if (gsc->ce)
 		intel_engine_destroy_pinned_context(fetch_and_zero(&gsc->ce));
@@ -146,11 +207,17 @@ void intel_gsc_uc_resume(struct intel_gsc_uc *gsc)
 
 void intel_gsc_uc_load_start(struct intel_gsc_uc *gsc)
 {
+	struct intel_gt *gt = gsc_uc_to_gt(gsc);
+
 	if (!intel_uc_fw_is_loadable(&gsc->fw))
 		return;
 
 	if (intel_gsc_uc_fw_init_done(gsc))
 		return;
 
-	queue_work(system_unbound_wq, &gsc->work);
+	spin_lock_irq(gt->irq_lock);
+	gsc->gsc_work_actions |= GSC_ACTION_FW_LOAD;
+	spin_unlock_irq(gt->irq_lock);
+
+	queue_work(gsc->wq, &gsc->work);
 }

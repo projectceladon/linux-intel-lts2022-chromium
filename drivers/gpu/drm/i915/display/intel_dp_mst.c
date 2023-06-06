@@ -445,7 +445,7 @@ static void intel_mst_post_disable_dp(struct intel_atomic_state *state,
 	 * no clock to the transcoder"
 	 */
 	if (DISPLAY_VER(dev_priv) < 12 || !last_mst_stream)
-		intel_ddi_disable_pipe_clock(old_crtc_state);
+		intel_ddi_disable_transcoder_clock(old_crtc_state);
 
 
 	intel_mst->connector = NULL;
@@ -455,6 +455,20 @@ static void intel_mst_post_disable_dp(struct intel_atomic_state *state,
 
 	drm_dbg_kms(&dev_priv->drm, "active links %d\n",
 		    intel_dp->active_mst_links);
+}
+
+static void intel_mst_post_pll_disable_dp(struct intel_atomic_state *state,
+					  struct intel_encoder *encoder,
+					  const struct intel_crtc_state *old_crtc_state,
+					  const struct drm_connector_state *old_conn_state)
+{
+	struct intel_dp_mst_encoder *intel_mst = enc_to_mst(encoder);
+	struct intel_digital_port *dig_port = intel_mst->primary;
+	struct intel_dp *intel_dp = &dig_port->dp;
+
+	if (intel_dp->active_mst_links == 0 &&
+	    dig_port->base.post_pll_disable)
+		dig_port->base.post_pll_disable(state, encoder, old_crtc_state, old_conn_state);
 }
 
 static void intel_mst_pre_pll_enable_dp(struct intel_atomic_state *state,
@@ -469,6 +483,13 @@ static void intel_mst_pre_pll_enable_dp(struct intel_atomic_state *state,
 	if (intel_dp->active_mst_links == 0)
 		dig_port->base.pre_pll_enable(state, &dig_port->base,
 						    pipe_config, NULL);
+	else
+		/*
+		 * The port PLL state needs to get updated for secondary
+		 * streams as for the primary stream.
+		 */
+		intel_ddi_update_active_dpll(state, &dig_port->base,
+					     to_intel_crtc(pipe_config->uapi.crtc));
 }
 
 static void intel_mst_pre_enable_dp(struct intel_atomic_state *state,
@@ -525,7 +546,7 @@ static void intel_mst_pre_enable_dp(struct intel_atomic_state *state,
 	 * here for the following ones.
 	 */
 	if (DISPLAY_VER(dev_priv) < 12 || !first_mst_stream)
-		intel_ddi_enable_pipe_clock(encoder, pipe_config);
+		intel_ddi_enable_transcoder_clock(encoder, pipe_config);
 
 	intel_ddi_set_dp_msa(pipe_config, conn_state);
 }
@@ -934,6 +955,7 @@ intel_dp_create_fake_mst_encoder(struct intel_digital_port *dig_port, enum pipe 
 	intel_encoder->compute_config_late = intel_dp_mst_compute_config_late;
 	intel_encoder->disable = intel_mst_disable_dp;
 	intel_encoder->post_disable = intel_mst_post_disable_dp;
+	intel_encoder->post_pll_disable = intel_mst_post_pll_disable_dp;
 	intel_encoder->update_pipe = intel_ddi_update_pipe;
 	intel_encoder->pre_pll_enable = intel_mst_pre_pll_enable_dp;
 	intel_encoder->pre_enable = intel_mst_pre_enable_dp;

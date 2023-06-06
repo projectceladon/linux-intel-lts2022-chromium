@@ -22,6 +22,9 @@
 #if CFG80211_VERSION < KERNEL_VERSION(5,6,0)
 #define ieee80211_get_vht_max_nss __iwl7000_ieee80211_get_vht_max_nss
 #endif
+#if CFG80211_VERSION < KERNEL_VERSION(6,4,0)
+#define cfg80211_defragment_element __iwl7000_cfg80211_defragment_element
+#endif
 #define ieee80211_csa_finish __iwl7000_ieee80211_csa_finish
 #define ieee80211_channel_switch_disconnect __iwl7000_ieee80211_channel_switch_disconnect
 #define ieee80211_nan_func_terminated __iwl7000_ieee80211_nan_func_terminated
@@ -129,6 +132,7 @@
 #define ieee80211_generic_frame_duration __iwl7000_ieee80211_generic_frame_duration
 #define ieee80211_rts_duration __iwl7000_ieee80211_rts_duration
 #define ieee80211_ctstoself_duration __iwl7000_ieee80211_ctstoself_duration
+#define ieee80211_handle_wake_tx_queue __iwl7000_ieee80211_handle_wake_tx_queue
 #define ieee80211_wake_queue __iwl7000_ieee80211_wake_queue
 #define ieee80211_stop_queue __iwl7000_ieee80211_stop_queue
 #define ieee80211_stop_queues __iwl7000_ieee80211_stop_queues

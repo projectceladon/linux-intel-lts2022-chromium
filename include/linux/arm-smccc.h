@@ -112,7 +112,6 @@
 /* KVM "vendor specific" services */
 #define ARM_SMCCC_KVM_FUNC_FEATURES		0
 #define ARM_SMCCC_KVM_FUNC_PTP			1
-#define ARM_SMCCC_KVM_FUNC_UCLAMP		64
 #define ARM_SMCCC_KVM_FUNC_HYP_MEMINFO		2
 #define ARM_SMCCC_KVM_FUNC_MEM_SHARE		3
 #define ARM_SMCCC_KVM_FUNC_MEM_UNSHARE		4
@@ -121,6 +120,9 @@
 #define ARM_SMCCC_KVM_FUNC_MMIO_GUARD_MAP	7
 #define ARM_SMCCC_KVM_FUNC_MMIO_GUARD_UNMAP	8
 #define ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH	9
+#define ARM_SMCCC_KVM_FUNC_GET_CUR_CPUFREQ	65
+#define ARM_SMCCC_KVM_FUNC_UTIL_HINT		66
+#define ARM_SMCCC_KVM_FUNC_GET_CPUFREQ_TBL	67
 #define ARM_SMCCC_KVM_FUNC_FEATURES_2		127
 #define ARM_SMCCC_KVM_NUM_FUNCS			128
 
@@ -171,16 +173,23 @@
 #define KVM_PTP_VIRT_COUNTER			0
 #define KVM_PTP_PHYS_COUNTER			1
 
-/*
- * uclamp sync service is a feature used to sync the guest task's uclamp
- * value to the host vcpu task. kvm-uclamp code in guest kernel will sync
- * the uclamp when switching the tasks using this hypercall ID.
- */
-#define ARM_SMCCC_VENDOR_HYP_KVM_UCLAMP_FUNC_ID				\
+#define ARM_SMCCC_VENDOR_HYP_KVM_GET_CUR_CPUFREQ_FUNC_ID		\
 	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,				\
 			   ARM_SMCCC_SMC_32,				\
 			   ARM_SMCCC_OWNER_VENDOR_HYP,			\
-			   ARM_SMCCC_KVM_FUNC_UCLAMP)
+			   ARM_SMCCC_KVM_FUNC_GET_CUR_CPUFREQ)
+
+#define ARM_SMCCC_VENDOR_HYP_KVM_UTIL_HINT_FUNC_ID			\
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,				\
+			   ARM_SMCCC_SMC_32,				\
+			   ARM_SMCCC_OWNER_VENDOR_HYP,			\
+			   ARM_SMCCC_KVM_FUNC_UTIL_HINT)
+
+#define ARM_SMCCC_VENDOR_HYP_KVM_GET_CPUFREQ_TBL_FUNC_ID		\
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,				\
+			   ARM_SMCCC_SMC_32,				\
+			   ARM_SMCCC_OWNER_VENDOR_HYP,			\
+			   ARM_SMCCC_KVM_FUNC_GET_CPUFREQ_TBL)
 
 #define ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID		\
 	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL,				\
@@ -293,6 +302,24 @@ u32 arm_smccc_get_version(void);
 void __init arm_smccc_version_init(u32 version, enum arm_smccc_conduit conduit);
 
 extern u64 smccc_has_sve_hint;
+
+/**
+ * arm_smccc_get_soc_id_version()
+ *
+ * Returns the SOC ID version.
+ *
+ * When ARM_SMCCC_ARCH_SOC_ID is not present, returns SMCCC_RET_NOT_SUPPORTED.
+ */
+s32 arm_smccc_get_soc_id_version(void);
+
+/**
+ * arm_smccc_get_soc_id_revision()
+ *
+ * Returns the SOC ID revision.
+ *
+ * When ARM_SMCCC_ARCH_SOC_ID is not present, returns SMCCC_RET_NOT_SUPPORTED.
+ */
+s32 arm_smccc_get_soc_id_revision(void);
 
 /**
  * struct arm_smccc_res - Result from SMC/HVC call

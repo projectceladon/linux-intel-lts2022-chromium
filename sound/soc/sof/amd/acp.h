@@ -158,12 +158,10 @@ struct acp_dsp_stream {
 struct sof_amd_acp_desc {
 	unsigned int rev;
 	unsigned int host_bridge_id;
-	unsigned int i2s_mode;
 	u32 pgfsm_base;
 	u32 ext_intr_stat;
 	u32 dsp_intr_base;
 	u32 sram_pte_offset;
-	u32 i2s_pin_config_offset;
 	u32 hw_semaphore_offset;
 	u32 acp_clkmux_sel;
 	u32 fusion_dsp_offset;
@@ -172,6 +170,8 @@ struct sof_amd_acp_desc {
 /* Common device data struct for ACP devices */
 struct acp_dev_data {
 	struct snd_sof_dev  *dev;
+	/* DMIC device */
+	struct platform_device *dmic_dev;
 	unsigned int fw_bin_size;
 	unsigned int fw_data_bin_size;
 	u32 fw_bin_page_count;
@@ -260,7 +260,6 @@ int sof_renoir_ops_init(struct snd_sof_dev *sdev);
 extern struct snd_sof_dsp_ops sof_rembrandt_ops;
 int sof_rembrandt_ops_init(struct snd_sof_dev *sdev);
 
-int acp_dai_probe(struct snd_soc_dai *dai);
 struct snd_soc_acpi_mach *amd_sof_machine_select(struct snd_sof_dev *sdev);
 /* Machine configuration */
 int snd_amd_acp_find_config(struct pci_dev *pci);
