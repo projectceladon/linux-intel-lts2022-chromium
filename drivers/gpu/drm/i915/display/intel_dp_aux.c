@@ -167,7 +167,7 @@ static u32 skl_get_aux_send_ctl(struct intel_dp *intel_dp,
 	      DP_AUX_CH_CTL_TIME_OUT_MAX |
 	      DP_AUX_CH_CTL_RECEIVE_ERROR |
 	      (send_bytes << DP_AUX_CH_CTL_MESSAGE_SIZE_SHIFT) |
-	      DP_AUX_CH_CTL_FW_SYNC_PULSE_SKL(32) |
+	      DP_AUX_CH_CTL_FW_SYNC_PULSE_SKL(24) |
 	      DP_AUX_CH_CTL_SYNC_PULSE_SKL(32);
 
 	if (intel_tc_port_in_tbt_alt_mode(dig_port))
@@ -208,8 +208,19 @@ intel_dp_aux_xfer(struct intel_dp *intel_dp,
 	for (i = 0; i < ARRAY_SIZE(ch_data); i++)
 		ch_data[i] = intel_dp->aux_ch_data_reg(intel_dp, i);
 
-	if (is_tc_port)
+	if (is_tc_port) {
 		intel_tc_port_lock(dig_port);
+		/*
+		 * Abort transfers on a disconnected port as required by
+		 * DP 1.4a link CTS 4.2.1.5, also avoiding the long AUX
+		 * timeouts that would otherwise happen.
+		 * TODO: abort the transfer on non-TC ports as well.
+		 */
+		if (!intel_tc_port_connected_locked(&dig_port->base)) {
+			ret = -ENXIO;
+			goto out_unlock;
+		}
+	}
 
 	aux_domain = intel_aux_power_domain(dig_port);
 
@@ -370,7 +381,7 @@ out:
 
 	intel_pps_unlock(intel_dp, pps_wakeref);
 	intel_display_power_put_async(i915, aux_domain, aux_wakeref);
-
+out_unlock:
 	if (is_tc_port)
 		intel_tc_port_unlock(dig_port);
 
