@@ -69,6 +69,7 @@ static void mock_device_release(struct drm_device *dev)
 	i915_gem_drain_workqueue(i915);
 
 	mock_fini_ggtt(to_gt(i915)->ggtt);
+	destroy_workqueue(i915->unordered_wq);
 	destroy_workqueue(i915->wq);
 
 	intel_region_ttm_device_fini(i915);
@@ -207,6 +208,10 @@ struct drm_i915_private *mock_gem_device(void)
 	if (!i915->wq)
 		goto err_drv;
 
+	i915->unordered_wq = alloc_workqueue("mock-unordered", 0, 0);
+	if (!i915->unordered_wq)
+		goto err_wq;
+
 	mock_init_contexts(i915);
 
 	/* allocate the ggtt */
@@ -238,6 +243,8 @@ struct drm_i915_private *mock_gem_device(void)
 err_context:
 	intel_gt_driver_remove(to_gt(i915));
 err_unlock:
+	destroy_workqueue(i915->unordered_wq);
+err_wq:
 	destroy_workqueue(i915->wq);
 err_drv:
 	intel_region_ttm_device_fini(i915);
