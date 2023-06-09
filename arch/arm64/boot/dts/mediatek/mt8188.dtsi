@@ -1861,7 +1861,7 @@
 			#size-cells = <1>;
 
 			dp_calibration: dp_data {
-				reg = <0x19c 0x10>;
+				reg = <0x1a0 0x10>;
 			};
 
 			lvts_efuse_data1: lvts1-calib@1ac {
@@ -2978,8 +2978,7 @@
 		};
 
 		edp_tx: edp-tx@1c500000 {
-			compatible = "mediatek,mt8188-edp-tx",
-				     "mediatek,mt8195-edp-tx";
+			compatible = "mediatek,mt8188-edp-tx";
 			reg = <0 0x1c500000 0 0x8000>;
 			nvmem-cells = <&dp_calibration>;
 			nvmem-cell-names = "dp_calibration_data";
@@ -2990,8 +2989,7 @@
 		};
 
 		dp_tx: dp-tx@1c600000 {
-			compatible = "mediatek,mt8188-dp-tx",
-				     "mediatek,mt8195-dp-tx";
+			compatible = "mediatek,mt8188-dp-tx";
 			reg = <0 0x1c600000 0 0x8000>;
 			max-lanes = <4>;
 			max-linkrate = <8100>;
