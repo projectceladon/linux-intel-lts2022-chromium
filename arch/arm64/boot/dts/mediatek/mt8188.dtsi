@@ -2992,12 +2992,12 @@
 			compatible = "mediatek,mt8188-dp-tx";
 			reg = <0 0x1c600000 0 0x8000>;
 			max-lanes = <4>;
-			max-linkrate = <8100>;
+			max-linkrate = <5400>;
 			nvmem-cells = <&dp_calibration>;
 			nvmem-cell-names = "dp_calibration_data";
 			power-domains = <&spm MT8188_POWER_DOMAIN_DP_TX>;
 			interrupts = <GIC_SPI 458 IRQ_TYPE_LEVEL_HIGH 0>;
-			max-linkrate-mhz = <8100>;
+			max-linkrate-mhz = <5400>;
 			status = "disabled";
 		};
 
