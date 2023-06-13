@@ -602,7 +602,6 @@ static const struct drm_driver mtk_drm_driver = {
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 	.gem_prime_import = mtk_drm_gem_prime_import,
 	.gem_prime_import_sg_table = mtk_gem_prime_import_sg_table,
-	.gem_prime_mmap = drm_gem_prime_mmap,
 
 	.ioctls = mtk_ioctls,
 	.num_ioctls = ARRAY_SIZE(mtk_ioctls),
