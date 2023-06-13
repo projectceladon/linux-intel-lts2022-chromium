@@ -24,6 +24,7 @@
 #include <net/net_namespace.h>
 #include <net/cfg80211.h>
 #include <net/rtnetlink.h>
+#include <kunit/visibility.h>
 
 #include "ieee80211_i.h"
 #include "driver-ops.h"
@@ -1514,7 +1515,7 @@ static void ieee80211_mle_get_sta_prof(struct ieee802_11_elems *elems,
 
 	for_each_mle_subelement(sub, (u8 *)ml, ml_len) {
 		struct ieee80211_mle_per_sta_profile *prof = (void *)sub->data;
-		size_t sta_prof_len;
+		ssize_t sta_prof_len;
 		u16 control;
 
 		if (sub->id != IEEE80211_MLE_SUBELEM_PER_STA_PROFILE)
@@ -1563,7 +1564,7 @@ static void ieee80211_mle_parse_link(struct ieee802_11_elems *elems,
 		.from_ap = params->from_ap,
 		.link_id = -1,
 	};
-	size_t ml_len = elems->ml_basic_len;
+	ssize_t ml_len = elems->ml_basic_len;
 	const struct element *non_inherit = NULL;
 	const u8 *end;
 
@@ -1677,6 +1678,7 @@ ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params)
 
 	return elems;
 }
+EXPORT_SYMBOL_IF_KUNIT(ieee802_11_parse_elems_full);
 
 void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 					   struct ieee80211_tx_queue_params
@@ -5162,3 +5164,4 @@ void ieee80211_fragment_element(struct sk_buff *skb, u8 *len_pos, u8 frag_id)
 
 	*len_pos = elem_len;
 }
+EXPORT_SYMBOL_IF_KUNIT(ieee80211_fragment_element);

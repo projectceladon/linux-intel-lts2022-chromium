@@ -560,6 +560,9 @@ struct ieee80211_if_managed {
 	 */
 	u8 *assoc_req_ies;
 	size_t assoc_req_ies_len;
+
+	struct delayed_work ml_reconf_work;
+	u16 removed_links;
 };
 
 struct ieee80211_if_ibss {
@@ -2552,7 +2555,7 @@ void ieee80211_recalc_chanctx_chantype(struct ieee80211_local *local,
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 			const u8 *peer,
-#if CFG80211_VERSION >= KERNEL_VERSION(6,2,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,5,0)
  int link_id,
 #endif
 			u8 action_code, u8 dialog_token, u16 status_code,
@@ -2609,4 +2612,8 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(struct ieee80211_sub_if_data *sdata,
 				    const struct ieee80211_eht_cap_elem *eht_cap_ie_elem,
 				    u8 eht_cap_len,
 				    struct link_sta_info *link_sta);
+
+void ieee80211_defragment_element(struct ieee802_11_elems *elems,
+				  void **elem_ptr, size_t *len,
+				  size_t total_len, u8 frag_id);
 #endif /* IEEE80211_I_H */

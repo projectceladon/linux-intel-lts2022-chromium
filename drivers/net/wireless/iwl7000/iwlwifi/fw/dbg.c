@@ -3057,8 +3057,15 @@ void iwl_fw_error_dump_wk(struct work_struct *work)
 {
 	struct iwl_fwrt_wk_data *wks =
 		container_of(work, typeof(*wks), wk.work);
-	struct iwl_fw_runtime *fwrt =
-		container_of(wks, typeof(*fwrt), dump.wks[wks->idx]);
+	struct iwl_fw_runtime *fwrt;
+
+	if (wks->idx >= IWL_FW_RUNTIME_DUMP_WK_NUM) {
+		fwrt = container_of(wks, typeof(*fwrt), dump.wks[0]);
+		IWL_ERR(fwrt, "invalid worker index %d\n", wks->idx);
+		return;
+	}
+
+	fwrt = container_of(wks, typeof(*fwrt), dump.wks[wks->idx]);
 
 	/* assumes the op mode mutex is locked in dump_start since
 	 * iwl_fw_dbg_collect_sync can't run in parallel
@@ -3225,7 +3232,7 @@ void iwl_fw_dbg_stop_restart_recording(struct iwl_fw_runtime *fwrt,
 	if (fw_has_capa(&fwrt->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_DBG_SUSPEND_RESUME_CMD_SUPP)) {
 		if (stop)
-			ret = iwl_fw_send_timestamp_marker_cmd(fwrt);
+			iwl_fw_send_timestamp_marker_cmd(fwrt);
 		ret = iwl_fw_dbg_suspend_resume_hcmd(fwrt->trans, stop);
 	} else if (stop) {
 		iwl_fw_dbg_stop_recording(fwrt->trans, params);
