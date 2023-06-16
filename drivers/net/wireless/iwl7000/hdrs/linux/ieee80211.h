@@ -4456,9 +4456,8 @@ static inline bool for_each_element_completed(const struct element *element,
 #define IEEE80211_AP_INFO_TBTT_HDR_FILTERED			0x04
 #define IEEE80211_AP_INFO_TBTT_HDR_COLOC			0x08
 #define IEEE80211_AP_INFO_TBTT_HDR_COUNT			0xF0
-#define IEEE80211_TBTT_INFO_OFFSET_BSSID_BSS_PARAM		9
-#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM	13
-#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM_MLD_PARAM	16
+#define IEEE80211_TBTT_INFO_TYPE_TBTT				0
+#define IEEE80211_TBTT_INFO_TYPE_MLD				1
 
 #define IEEE80211_RNR_TBTT_PARAMS_OCT_RECOMMENDED		0x01
 #define IEEE80211_RNR_TBTT_PARAMS_SAME_SSID			0x02
@@ -4495,6 +4494,28 @@ struct ieee80211_rnr_mld_params {
 #define IEEE80211_RNR_MLD_PARAMS_BSS_CHANGE_COUNT		0x0FF0
 #define IEEE80211_RNR_MLD_PARAMS_UPDATES_INCLUDED		0x1000
 #define IEEE80211_RNR_MLD_PARAMS_DISABLED_LINK			0x2000
+
+/* Format of the TBTT information element if it has 7, 8 or 9 bytes */
+struct ieee80211_tbtt_info_7_8_9 {
+	u8 tbtt_offset;
+	u8 bssid[ETH_ALEN];
+
+	/* The following element is optional, structure may not grow */
+	u8 bss_params;
+	u8 psd_20;
+} __packed;
+
+/* Format of the TBTT information element if it has >= 11 bytes */
+struct ieee80211_tbtt_info_ge_11 {
+	u8 tbtt_offset;
+	u8 bssid[ETH_ALEN];
+	__le32 short_ssid;
+
+	/* The following elements are optional, structure may grow */
+	u8 bss_params;
+	u8 psd_20;
+	struct ieee80211_rnr_mld_params mld_params;
+} __packed;
 
 /* multi-link device */
 #define IEEE80211_MLD_MAX_NUM_LINKS	15
@@ -4830,9 +4851,6 @@ static inline bool ieee80211_mle_basic_sta_prof_size_ok(const u8 *data,
 		info_len += 8;
 	if (control & IEEE80211_MLE_STA_CONTROL_DTIM_INFO_PRESENT)
 		info_len += 2;
-	if (control & IEEE80211_MLE_STA_CONTROL_BSS_PARAM_CHANGE_CNT_PRESENT)
-		info_len += 1;
-
 	if (control & IEEE80211_MLE_STA_CONTROL_COMPLETE_PROFILE &&
 	    control & IEEE80211_MLE_STA_CONTROL_NSTR_BITMAP_SIZE) {
 		if (control & IEEE80211_MLE_STA_CONTROL_NSTR_BITMAP_SIZE)
@@ -4840,9 +4858,48 @@ static inline bool ieee80211_mle_basic_sta_prof_size_ok(const u8 *data,
 		else
 			info_len += 1;
 	}
+	if (control & IEEE80211_MLE_STA_CONTROL_BSS_PARAM_CHANGE_CNT_PRESENT)
+		info_len += 1;
 
 	return prof->sta_info_len >= info_len &&
 	       fixed + prof->sta_info_len <= len;
+}
+
+#define IEEE80211_MLE_STA_RECONF_CONTROL_LINK_ID			0x000f
+#define IEEE80211_MLE_STA_RECONF_CONTROL_COMPLETE_PROFILE		0x0010
+#define IEEE80211_MLE_STA_RECONF_CONTROL_STA_MAC_ADDR_PRESENT		0x0020
+#define IEEE80211_MLE_STA_RECONF_CONTROL_AP_REM_TIMER_PRESENT		0x0040
+#define IEEE80211_MLE_STA_RECONF_CONTROL_OPERATION_UPDATE_TYPE		0x0780
+#define IEEE80211_MLE_STA_RECONF_CONTROL_OPERATION_PARAMS_PRESENT	0x0800
+
+/**
+ * ieee80211_mle_reconf_sta_prof_size_ok - validate reconfiguration multi-link
+ *	element sta profile size.
+ * @data: pointer to the sub element data
+ * @len: length of the containing sub element
+ */
+static inline bool ieee80211_mle_reconf_sta_prof_size_ok(const u8 *data,
+							 size_t len)
+{
+	const struct ieee80211_mle_per_sta_profile *prof = (const void *)data;
+	u16 control;
+	u8 fixed = sizeof(*prof);
+	u8 info_len = 1;
+
+	if (len < fixed)
+		return false;
+
+	control = le16_to_cpu(prof->control);
+
+	if (control & IEEE80211_MLE_STA_RECONF_CONTROL_STA_MAC_ADDR_PRESENT)
+		info_len += ETH_ALEN;
+	if (control & IEEE80211_MLE_STA_RECONF_CONTROL_AP_REM_TIMER_PRESENT)
+		info_len += 2;
+	if (control & IEEE80211_MLE_STA_RECONF_CONTROL_OPERATION_PARAMS_PRESENT)
+		info_len += 2;
+
+	return prof->sta_info_len >= info_len &&
+	       fixed + prof->sta_info_len - 1 <= len;
 }
 
 #define for_each_mle_subelement(_elem, _data, _len)			\
