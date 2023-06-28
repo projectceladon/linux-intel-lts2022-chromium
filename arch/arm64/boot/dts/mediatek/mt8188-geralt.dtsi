@@ -161,6 +161,12 @@
 			reg = <0 0x50000000 0 0x2900000>;
 			no-map;
 		};
+
+		afe_dma_mem_reserved: snd_dma_mem_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0x60000000 0 0x1000000>;
+		};
 	};
 
 	usb_p1_vbus: regulator-usb-p1-vbus {
@@ -174,6 +180,7 @@
 };
 
 &afe {
+	memory-region = <&afe_dma_mem_reserved>;
 	mediatek,etdm-out1-cowork-source = <0>; /* in1 */
 	mediatek,etdm-in2-cowork-source = <3>; /* out2 */
 	status = "okay";
@@ -755,22 +762,67 @@
 		};
 	};
 
-	aud_pins_default: audiodefault {
-		pins_cmd_dat {
+	aud_etdm_hp_on: aud_etdm_hp_on {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO110__FUNC_I0_I2SIN_D0>,
+				 <PINMUX_GPIO115__FUNC_B0_I2SO2_BCK>,
+				 <PINMUX_GPIO116__FUNC_B0_I2SO2_WS>,
+				 <PINMUX_GPIO117__FUNC_O_I2SO2_D0>;
+		};
+	};
+
+	aud_etdm_hp_off: aud_etdm_hp_off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>,
+				 <PINMUX_GPIO115__FUNC_B_GPIO115>,
+				 <PINMUX_GPIO116__FUNC_B_GPIO116>,
+				 <PINMUX_GPIO117__FUNC_B_GPIO117>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	aud_etdm_spk_on: aud_etdm_spk_on {
+		pins-cmd-dat {
 			pinmux = <PINMUX_GPIO11__FUNC_O_I2SO1_D0>,
-				 <PINMUX_GPIO101__FUNC_O_AUD_CLK_MOSI>,
+				 <PINMUX_GPIO113__FUNC_B0_TDMIN_BCK>,
+				 <PINMUX_GPIO119__FUNC_B0_TDMIN_LRCK>,
+				 <PINMUX_GPIO120__FUNC_I0_TDMIN_DI>;
+		};
+	};
+
+	aud_etdm_spk_off: aud_etdm_spk_off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO11__FUNC_B_GPIO11>,
+				 <PINMUX_GPIO113__FUNC_B_GPIO113>,
+				 <PINMUX_GPIO119__FUNC_B_GPIO119>,
+				 <PINMUX_GPIO120__FUNC_B_GPIO120>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	aud_mtkaif_on: aud_mtkaif_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_O_AUD_CLK_MOSI>,
 				 <PINMUX_GPIO102__FUNC_O_AUD_SYNC_MOSI>,
 				 <PINMUX_GPIO103__FUNC_O_AUD_DAT_MOSI0>,
 				 <PINMUX_GPIO104__FUNC_O_AUD_DAT_MOSI1>,
 				 <PINMUX_GPIO105__FUNC_I0_AUD_DAT_MISO0>,
-				 <PINMUX_GPIO106__FUNC_I0_AUD_DAT_MISO1>,
-				 <PINMUX_GPIO110__FUNC_I0_I2SIN_D0>,
-				 <PINMUX_GPIO113__FUNC_B0_TDMIN_BCK>,
-				 <PINMUX_GPIO115__FUNC_B0_I2SO2_BCK>,
-				 <PINMUX_GPIO116__FUNC_B0_I2SO2_WS>,
-				 <PINMUX_GPIO117__FUNC_O_I2SO2_D0>,
-				 <PINMUX_GPIO119__FUNC_B0_TDMIN_LRCK>,
-				 <PINMUX_GPIO120__FUNC_I0_TDMIN_DI>;
+				 <PINMUX_GPIO106__FUNC_I0_AUD_DAT_MISO1>;
+		};
+	};
+
+	aud_mtkaif_off: aud_mtkaif_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_B_GPIO101>,
+				 <PINMUX_GPIO102__FUNC_B_GPIO102>,
+				 <PINMUX_GPIO103__FUNC_B_GPIO103>,
+				 <PINMUX_GPIO104__FUNC_B_GPIO104>,
+				 <PINMUX_GPIO105__FUNC_B_GPIO105>,
+				 <PINMUX_GPIO106__FUNC_B_GPIO106>;
+			bias-pull-down;
+			input-enable;
 		};
 	};
 
@@ -1095,9 +1147,26 @@
 &sound {
 	compatible = "mediatek,mt8188-nau8825";
 	model = "mt8188_m98390_8825";
-	pinctrl-names = "default";
-	pinctrl-0 = <&aud_pins_default>;
+
+	pinctrl-names = "aud_etdm_hp_on",
+			"aud_etdm_hp_off",
+			"aud_etdm_spk_on",
+			"aud_etdm_spk_off",
+			"aud_mtkaif_on",
+			"aud_mtkaif_off";
+	pinctrl-0 = <&aud_etdm_hp_on>;
+	pinctrl-1 = <&aud_etdm_hp_off>;
+	pinctrl-2 = <&aud_etdm_spk_on>;
+	pinctrl-3 = <&aud_etdm_spk_off>;
+	pinctrl-4 = <&aud_mtkaif_on>;
+	pinctrl-5 = <&aud_mtkaif_off>;
+
 	audio-routing =
+		"ETDM1_OUT", "ETDM_SPK_PIN",
+		"ETDM2_OUT", "ETDM_HP_PIN",
+		"ETDM1_IN", "ETDM_SPK_PIN",
+		"ETDM2_IN", "ETDM_HP_PIN",
+		"ADDA Capture", "MTKAIF_PIN",
 		"Headphone Jack", "HPOL",
 		"Headphone Jack", "HPOR",
 		"MIC", "Headset Mic",
