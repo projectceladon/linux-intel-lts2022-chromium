@@ -117,7 +117,7 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 EXPORT_SYMBOL(ieee80211_get_vht_max_nss);
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(6,5,0)
+#if CFG80211_VERSION < KERNEL_VERSION(6,4,0)
 ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies,
 				    size_t ieslen, u8 *data, size_t data_len,
 				    u8 frag_id)
@@ -177,4 +177,33 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies,
 	return copied;
 }
 EXPORT_SYMBOL(cfg80211_defragment_element);
+
+void ieee80211_fragment_element(struct sk_buff *skb, u8 *len_pos, u8 frag_id)
+{
+	unsigned int elem_len;
+
+	if (!len_pos)
+		return;
+
+	elem_len = skb->data + skb->len - len_pos - 1;
+
+	while (elem_len > 255) {
+		/* this one is 255 */
+		*len_pos = 255;
+		/* remaining data gets smaller */
+		elem_len -= 255;
+		/* make space for the fragment ID/len in SKB */
+		skb_put(skb, 2);
+		/* shift back the remaining data to place fragment ID/len */
+		memmove(len_pos + 255 + 3, len_pos + 255 + 1, elem_len);
+		/* place the fragment ID */
+		len_pos += 255 + 1;
+		*len_pos = frag_id;
+		/* and point to fragment length to update later */
+		len_pos++;
+	}
+
+	*len_pos = elem_len;
+}
+EXPORT_SYMBOL(ieee80211_fragment_element);
 #endif

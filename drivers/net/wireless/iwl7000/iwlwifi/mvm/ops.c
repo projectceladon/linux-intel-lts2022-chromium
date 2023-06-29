@@ -453,9 +453,9 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 		       RX_HANDLER_ASYNC_LOCKED,
 		       struct iwl_thermal_dual_chain_request),
 
-	RX_HANDLER_GRP(SYSTEM_GROUP, RFI_DEACTIVATE_NOTIF,
-		       iwl_rfi_deactivate_notif_handler, RX_HANDLER_ASYNC_UNLOCKED,
-		       struct iwl_rfi_deactivate_notif),
+	RX_HANDLER_GRP(SYSTEM_GROUP, RFI_SUPPORT_NOTIF,
+		       iwl_rfi_support_notif_handler, RX_HANDLER_ASYNC_UNLOCKED,
+		       struct iwl_rfi_support_notif),
 
 	RX_HANDLER_GRP(LEGACY_GROUP,
 		       WNM_80211V_TIMING_MEASUREMENT_NOTIFICATION,
@@ -578,7 +578,7 @@ static const struct iwl_hcmd_names iwl_mvm_system_names[] = {
 	HCMD_NAME(RFI_CONFIG_CMD),
 	HCMD_NAME(RFI_GET_FREQ_TABLE_CMD),
 	HCMD_NAME(SYSTEM_FEATURES_CONTROL_CMD),
-	HCMD_NAME(RFI_DEACTIVATE_NOTIF),
+	HCMD_NAME(RFI_SUPPORT_NOTIF),
 };
 
 /* Please keep this array *SORTED* by hex value.
@@ -1264,7 +1264,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		return NULL;
 
 	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
-		max_agg = IEEE80211_MAX_AMPDU_BUF_EHT;
+		max_agg = 512;
 	else
 		max_agg = IEEE80211_MAX_AMPDU_BUF_HE;
 
