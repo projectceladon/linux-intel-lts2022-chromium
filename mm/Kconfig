@@ -1208,6 +1208,10 @@ config LOW_MEM_NOTIFY
 	  the presence of large swap space, the system is likely to become
 	  unusable before the OOM killer is triggered.
 
+config LOCK_MM_AND_FIND_VMA
+	bool
+	depends on !STACK_GROWSUP
+
 source "mm/damon/Kconfig"
 
 endmenu
