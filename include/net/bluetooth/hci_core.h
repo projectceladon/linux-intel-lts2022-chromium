@@ -595,9 +595,7 @@ struct hci_dev {
 	const char		*fw_info;
 	struct dentry		*debugfs;
 
-#ifdef CONFIG_DEV_COREDUMP
 	struct hci_devcoredump	dump;
-#endif
 
 	struct device		dev;
 
