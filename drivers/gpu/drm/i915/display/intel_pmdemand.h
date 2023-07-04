@@ -7,6 +7,7 @@
 #define __INTEL_PMDEMAND_H__
 
 #include "intel_global_state.h"
+#include "intel_display.h"
 
 struct drm_i915_private;
 struct intel_atomic_state;
