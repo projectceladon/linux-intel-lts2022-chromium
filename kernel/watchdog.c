@@ -832,7 +832,7 @@ static struct ctl_table watchdog_sysctls[] = {
 	},
 #endif /* CONFIG_SMP */
 #endif
-#ifdef CONFIG_HARDLOCKUP_DETECTOR_CORE
+#ifdef CONFIG_HARDLOCKUP_DETECTOR
 	{
 		.procname	= "hardlockup_panic",
 		.data		= &hardlockup_panic,
