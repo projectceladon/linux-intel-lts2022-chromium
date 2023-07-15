@@ -1445,7 +1445,6 @@ static int fbinfo_init(struct omapfb_device *fbdev, struct fb_info *info)
 	int				r = 0;
 
 	info->fbops = &omapfb_ops;
-	info->flags = FBINFO_FLAG_DEFAULT;
 
 	strncpy(fix->id, MODULE_NAME, sizeof(fix->id));
 
