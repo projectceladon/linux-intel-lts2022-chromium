@@ -999,24 +999,30 @@ static int ieee80211_set_monitor_channel(struct wiphy *wiphy,
 	if (cfg80211_chandef_identical(&local->monitor_chandef, chandef))
 		return 0;
 
-	mutex_lock(&local->mtx);
 	if (local->use_chanctx) {
 		sdata = wiphy_dereference(local->hw.wiphy,
 					  local->monitor_sdata);
 		if (sdata) {
+			sdata_lock(sdata);
+			mutex_lock(&local->mtx);
 			ieee80211_link_release_channel(&sdata->deflink);
 			ret = ieee80211_link_use_channel(&sdata->deflink,
 							 chandef,
 							 IEEE80211_CHANCTX_EXCLUSIVE);
+			mutex_unlock(&local->mtx);
+			sdata_unlock(sdata);
 		}
-	} else if (local->open_count == local->monitors) {
-		local->_oper_chandef = *chandef;
-		ieee80211_hw_config(local, 0);
+	} else {
+		mutex_lock(&local->mtx);
+		if (local->open_count == local->monitors) {
+			local->_oper_chandef = *chandef;
+			ieee80211_hw_config(local, 0);
+		}
+		mutex_unlock(&local->mtx);
 	}
 
 	if (ret == 0)
 		local->monitor_chandef = *chandef;
-	mutex_unlock(&local->mtx);
 
 	return ret;
 }
@@ -1904,7 +1910,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 	/* VHT can override some HT caps such as the A-MSDU max length */
 	if (params->vht_capa)
 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
-						    params->vht_capa, link_sta);
+						    params->vht_capa, NULL,
+						    link_sta);
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
 	if (params->he_capa)
@@ -5244,7 +5251,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.join_ocb = ieee80211_join_ocb,
 	.leave_ocb = ieee80211_leave_ocb,
 	.change_bss = ieee80211_change_bss,
-#if CFG80211_VERSION >= KERNEL_VERSION(6,5,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(6,4,0)
 	.inform_bss = ieee80211_inform_bss,
 #endif
 	.set_txq_params = ieee80211_set_txq_params,
