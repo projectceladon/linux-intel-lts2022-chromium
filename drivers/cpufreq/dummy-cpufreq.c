@@ -6,8 +6,8 @@
 #include <linux/module.h>
 
 static struct cpufreq_frequency_table freq_table[] = {
-	{ .frequency = 1 },
-	{ .frequency = 2 },
+	{ .frequency = 400000 },
+	{ .frequency = 4700000 },
 	{ .frequency = CPUFREQ_TABLE_END },
 };
 
