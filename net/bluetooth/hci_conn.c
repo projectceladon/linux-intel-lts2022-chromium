@@ -117,7 +117,7 @@ static void hci_connect_le_scan_cleanup(struct hci_conn *conn, u8 status)
 	 */
 	params->explicit_connect = false;
 
-	hci_pend_le_list_del_init(params);
+	list_del_init(&params->action);
 
 	switch (params->auto_connect) {
 	case HCI_AUTO_CONN_EXPLICIT:
@@ -126,10 +126,10 @@ static void hci_connect_le_scan_cleanup(struct hci_conn *conn, u8 status)
 		return;
 	case HCI_AUTO_CONN_DIRECT:
 	case HCI_AUTO_CONN_ALWAYS:
-		hci_pend_le_list_add(params, &hdev->pend_le_conns);
+		list_add(&params->action, &hdev->pend_le_conns);
 		break;
 	case HCI_AUTO_CONN_REPORT:
-		hci_pend_le_list_add(params, &hdev->pend_le_reports);
+		list_add(&params->action, &hdev->pend_le_reports);
 		break;
 	default:
 		break;
@@ -1398,8 +1398,8 @@ static int hci_explicit_conn_params_set(struct hci_dev *hdev,
 	if (params->auto_connect == HCI_AUTO_CONN_DISABLED ||
 	    params->auto_connect == HCI_AUTO_CONN_REPORT ||
 	    params->auto_connect == HCI_AUTO_CONN_EXPLICIT) {
-		hci_pend_le_list_del_init(params);
-		hci_pend_le_list_add(params, &hdev->pend_le_conns);
+		list_del_init(&params->action);
+		list_add(&params->action, &hdev->pend_le_conns);
 	}
 
 	params->explicit_connect = true;
