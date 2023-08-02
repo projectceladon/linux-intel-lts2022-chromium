@@ -2223,6 +2223,11 @@ struct cfg80211_set_hw_timestamp {
 #define set_hw_timestamp_max_peers(hw, val)	(hw)->wiphy->hw_timestamp_max_peers = val
 #endif
 
+#if KERNEL_VERSION(6, 0, 0) > CFG80211_VERSION
+#define cfg80211_ch_switch_notify(dev, chandef, link_id, punct_bitmap) \
+	cfg80211_ch_switch_notify(dev, chandef)
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(6,0,0)
 static inline enum ieee80211_rate_flags
 ieee80211_chanwidth_rate_flags(enum nl80211_chan_width width)

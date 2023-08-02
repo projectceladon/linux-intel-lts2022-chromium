@@ -3814,7 +3814,8 @@ static int __ieee80211_csa_finalize(struct ieee80211_link_data *link_data)
 	if (err)
 		return err;
 
-	cfg80211_ch_switch_notify(sdata->dev, &link_data->csa_chandef, 0);
+	cfg80211_ch_switch_notify(sdata->dev, &sdata->deflink.csa_chandef, 0,
+				  sdata->vif.bss_conf.eht_puncturing);
 
 	return 0;
 }
@@ -4090,7 +4091,7 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 
 	cfg80211_ch_switch_started_notify(sdata->dev,
 					  &sdata->deflink.csa_chandef, 0,
-					  params->count, params->block_tx);
+					  params->count, params->block_tx, 0);
 
 	if (changed) {
 		ieee80211_link_info_change_notify(sdata, &sdata->deflink,
@@ -4963,7 +4964,7 @@ ieeee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 	if (sdata->vif.bss_conf.color_change_active || sdata->vif.bss_conf.csa_active)
 		return;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5, 19, 0) && CFG80211_VERSION < KERNEL_VERSION(6, 1, 0)
 	cfg80211_obss_color_collision_notify(sdata->dev, color_bitmap, gfp);
 #else
 	cfg80211_obss_color_collision_notify(sdata->dev, color_bitmap);
