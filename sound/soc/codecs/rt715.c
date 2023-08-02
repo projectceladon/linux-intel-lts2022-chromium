@@ -988,6 +988,8 @@ int rt715_init(struct device *dev, struct regmap *sdw_regmap,
 	rt715->regmap = regmap;
 	rt715->sdw_regmap = sdw_regmap;
 
+	regcache_cache_only(rt715->regmap, true);
+
 	/*
 	 * Mark hw_init to false
 	 * HW init will be performed when device reports present
@@ -1026,6 +1028,8 @@ int rt715_io_init(struct device *dev, struct sdw_slave *slave)
 
 	if (rt715->hw_init)
 		return 0;
+
+	regcache_cache_only(rt715->regmap, false);
 
 	/*
 	 *  PM runtime status is marked as 'active' only when a Slave reports as Attached

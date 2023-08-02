@@ -1190,6 +1190,8 @@ int rt711_init(struct device *dev, struct regmap *sdw_regmap,
 	rt711->sdw_regmap = sdw_regmap;
 	rt711->regmap = regmap;
 
+	regcache_cache_only(rt711->regmap, true);
+
 	mutex_init(&rt711->calibrate_mutex);
 	mutex_init(&rt711->disable_irq_lock);
 
@@ -1243,10 +1245,9 @@ int rt711_io_init(struct device *dev, struct sdw_slave *slave)
 	if (rt711->hw_init)
 		return 0;
 
-	if (rt711->first_hw_init) {
-		regcache_cache_only(rt711->regmap, false);
+	regcache_cache_only(rt711->regmap, false);
+	if (rt711->first_hw_init)
 		regcache_cache_bypass(rt711->regmap, true);
-	}
 
 	/*
 	 * PM runtime status is marked as 'active' only when a Slave reports as Attached
