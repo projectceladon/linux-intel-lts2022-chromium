@@ -1121,10 +1121,11 @@ __lrc_alloc_state(struct intel_context *ce, struct intel_engine_cs *engine)
 			return ERR_CAST(obj);
 
 		/*
-		 * Wa_22016122933: For MTL the shared memory needs to be mapped
-		 * as WC on CPU side and UC (PAT index 2) on GPU side
+		 * Wa_22016122933: For Media version 13.0, all Media GT shared
+		 * memory needs to be mapped as WC on CPU side and UC (PAT
+		 * index 2) on GPU side.
 		 */
-		if (IS_METEORLAKE(engine->i915))
+		if (intel_gt_needs_wa_22016122933(engine->gt))
 			i915_gem_object_set_cache_coherency(obj, I915_CACHE_NONE);
 	}
 
