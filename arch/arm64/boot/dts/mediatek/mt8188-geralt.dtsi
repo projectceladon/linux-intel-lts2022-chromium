@@ -78,7 +78,21 @@
 		kaslr-seed = <0 0>;
 	};
 
-	dmic_codec: dmic-codec {
+	firmware {
+		optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 547 IRQ_TYPE_LEVEL_HIGH 0>;
+		};
+
+		mtk_svp_heap {
+			compatible = "mediatek,secure_heap";
+			memory-region = <&secure_cma_reserved>;
+		};
+	};
+
+        dmic_codec: dmic-codec {
 		compatible = "dmic-codec";
 		num-channels = <2>;
 		wakeup-delay-ms = <50>;
@@ -183,8 +197,20 @@
 
 		scp_dual_mem_reserved: scp-dual-mem-region {
 			compatible = "shared-dma-pool";
-			reg = <0 0x70000000 0 0xd000000>;
+			reg = <0 0x70000000 0 0x0C000000>;
 			no-map;
+		};
+
+		scp_isp_cma_reserved: cma@7C000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x7C000000 0 0x05000000>;
+			reusable;
+		};
+
+		secure_cma_reserved: secure_cma_region {
+			compatible = "mediatek,secure_cma_chunkmem";
+			reusable;
+			reg = <0 0x81000000 0 0x18000000>;
 		};
 	};
 
