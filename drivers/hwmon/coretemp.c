@@ -532,9 +532,9 @@ coretemp_add_core(struct platform_device *pdev, unsigned int cpu, int pkg_flag)
 		dev_err(&pdev->dev, "Adding Core %u failed\n", cpu);
 }
 
-static void coretemp_remove_core(struct platform_data *pdata, int index)
+static void coretemp_remove_core(struct platform_data *pdata, int indx)
 {
-	struct temp_data *tdata = pdata->core_data[index];
+	struct temp_data *tdata = pdata->core_data[indx];
 
 	/* if we errored on add then this is already gone */
 	if (!tdata)
@@ -543,11 +543,11 @@ static void coretemp_remove_core(struct platform_data *pdata, int index)
 	/* Remove the sysfs attributes */
 	sysfs_remove_group(&pdata->hwmon_dev->kobj, &tdata->attr_group);
 
-	kfree(pdata->core_data[index]);
-	pdata->core_data[index] = NULL;
+	kfree(pdata->core_data[indx]);
+	pdata->core_data[indx] = NULL;
 
-	if (index >= BASE_SYSFS_ATTR_NO)
-		ida_free(&pdata->ida, index - BASE_SYSFS_ATTR_NO);
+	if (indx >= BASE_SYSFS_ATTR_NO)
+		ida_free(&pdata->ida, indx - BASE_SYSFS_ATTR_NO);
 }
 
 static int coretemp_device_add(int zoneid)
@@ -660,7 +660,7 @@ static int coretemp_cpu_offline(unsigned int cpu)
 	struct platform_device *pdev = coretemp_get_pdev(cpu);
 	struct platform_data *pd;
 	struct temp_data *tdata;
-	int i, index = -1, target;
+	int i, indx = -1, target;
 
 	/* No need to tear down any interfaces for suspend */
 	if (cpuhp_tasks_frozen)
@@ -673,16 +673,16 @@ static int coretemp_cpu_offline(unsigned int cpu)
 
 	for (i = 0; i < NUM_REAL_CORES; i++) {
 		if (pd->cpu_map[i] == topology_core_id(cpu)) {
-			index = i + BASE_SYSFS_ATTR_NO;
+			indx = i + BASE_SYSFS_ATTR_NO;
 			break;
 		}
 	}
 
 	/* Too many cores and this core is not populated, just return */
-	if (index < 0)
+	if (indx < 0)
 		return 0;
 
-	tdata = pd->core_data[index];
+	tdata = pd->core_data[indx];
 
 	cpumask_clear_cpu(cpu, &pd->cpumask);
 
@@ -693,7 +693,7 @@ static int coretemp_cpu_offline(unsigned int cpu)
 	 */
 	target = cpumask_any_and(&pd->cpumask, topology_sibling_cpumask(cpu));
 	if (target >= nr_cpu_ids) {
-		coretemp_remove_core(pd, index);
+		coretemp_remove_core(pd, indx);
 	} else if (tdata && tdata->cpu == cpu) {
 		mutex_lock(&tdata->update_lock);
 		tdata->cpu = target;
