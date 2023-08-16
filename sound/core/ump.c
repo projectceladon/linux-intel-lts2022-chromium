@@ -12,10 +12,10 @@
 #include <sound/rawmidi.h>
 #include <sound/ump.h>
 
-#define ump_err(ump, fmt, args...)	dev_err(&(ump)->core.dev, fmt, ##args)
-#define ump_warn(ump, fmt, args...)	dev_warn(&(ump)->core.dev, fmt, ##args)
-#define ump_info(ump, fmt, args...)	dev_info(&(ump)->core.dev, fmt, ##args)
-#define ump_dbg(ump, fmt, args...)	dev_dbg(&(ump)->core.dev, fmt, ##args)
+#define ump_err(ump, fmt, args...)	dev_err((ump)->core.dev, fmt, ##args)
+#define ump_warn(ump, fmt, args...)	dev_warn((ump)->core.dev, fmt, ##args)
+#define ump_info(ump, fmt, args...)	dev_info((ump)->core.dev, fmt, ##args)
+#define ump_dbg(ump, fmt, args...)	dev_dbg((ump)->core.dev, fmt, ##args)
 
 static int snd_ump_dev_register(struct snd_rawmidi *rmidi);
 static int snd_ump_dev_unregister(struct snd_rawmidi *rmidi);
