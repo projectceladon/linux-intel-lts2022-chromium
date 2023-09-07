@@ -41,7 +41,7 @@
 #include "amdgpu_dm_trace.h"
 #include "dc/inc/dc_link_ddc.h"
 #include "dpcd_defs.h"
-#include "dc/inc/link_dpcd.h"
+#include "link/link_dpcd.h"
 #include "link_service_types.h"
 
 #include "vid.h"
