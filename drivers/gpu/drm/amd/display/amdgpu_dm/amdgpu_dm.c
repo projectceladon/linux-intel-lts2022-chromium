@@ -5010,7 +5010,7 @@ static int fill_dc_plane_attributes(struct amdgpu_device *adev,
 
 static inline void fill_dc_dirty_rect(struct drm_plane *plane,
 				      struct rect *dirty_rect, int32_t x,
-				      int32_t y, int32_t width, int32_t height,
+				      s32 y, s32 width, s32 height,
 				      int *i, bool ffu)
 {
 	WARN_ON(*i >= DC_MAX_DIRTY_RECTS);
@@ -5061,7 +5061,7 @@ static void fill_dc_dirty_rects(struct drm_plane *plane,
 {
 	struct dm_crtc_state *dm_crtc_state = to_dm_crtc_state(crtc_state);
 	struct rect *dirty_rects = flip_addrs->dirty_rects;
-	uint32_t num_clips;
+	u32 num_clips;
 	struct drm_mode_rect *clips;
 	bool bb_changed;
 	bool fb_changed;
