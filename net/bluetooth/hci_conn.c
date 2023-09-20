@@ -327,6 +327,9 @@ static void hci_add_sco(struct hci_conn *conn, __u16 handle)
 static bool find_next_esco_param(struct hci_conn *conn,
 				 const struct sco_param *esco_param, int size)
 {
+	if (!conn->link)
+		return false;
+
 	for (; conn->attempt <= size; conn->attempt++) {
 		if (lmp_esco_2m_capable(conn->link) ||
 		    (esco_param[conn->attempt - 1].pkt_type & ESCO_2EV3))
