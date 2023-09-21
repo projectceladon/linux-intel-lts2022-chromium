@@ -535,8 +535,8 @@ void intel_modeset_driver_remove_nogem(struct drm_i915_private *i915);
 void intel_display_resume(struct drm_device *dev);
 int intel_modeset_pipes_in_mask_early(struct intel_atomic_state *state,
 				      const char *reason, u8 pipe_mask);
-int intel_modeset_all_pipes(struct intel_atomic_state *state,
-			    const char *reason);
+int intel_modeset_all_pipes_late(struct intel_atomic_state *state,
+				 const char *reason);
 void intel_modeset_get_crtc_power_domains(struct intel_crtc_state *crtc_state,
 					  struct intel_power_domain_mask *old_domains);
 void intel_modeset_put_crtc_power_domains(struct intel_crtc *crtc,
