@@ -1117,6 +1117,9 @@ __lrc_alloc_state(struct intel_context *ce, struct intel_engine_cs *engine)
 					  I915_BO_ALLOC_PM_VOLATILE);
 	if (IS_ERR(obj)) {
 		obj = i915_gem_object_create_shmem(engine->i915, context_size);
+		if (IS_ERR(obj))
+			return ERR_CAST(obj);
+
 		/*
 		 * Wa_22016122933: For MTL the shared memory needs to be mapped
 		 * as WC on CPU side and UC (PAT index 2) on GPU side
@@ -1124,8 +1127,6 @@ __lrc_alloc_state(struct intel_context *ce, struct intel_engine_cs *engine)
 		if (IS_METEORLAKE(engine->i915))
 			i915_gem_object_set_cache_coherency(obj, I915_CACHE_NONE);
 	}
-	if (IS_ERR(obj))
-		return ERR_CAST(obj);
 
 	vma = i915_vma_instance(obj, &engine->gt->ggtt->vm, NULL);
 	if (IS_ERR(vma)) {
