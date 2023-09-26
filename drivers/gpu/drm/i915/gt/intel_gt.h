@@ -107,4 +107,7 @@ void intel_gt_info_print(const struct intel_gt_info *info,
 
 void intel_gt_watchdog_work(struct work_struct *work);
 
+void intel_gt_bind_context_set_ready(struct intel_gt *gt);
+void intel_gt_bind_context_set_unready(struct intel_gt *gt);
+bool intel_gt_is_bind_context_ready(struct intel_gt *gt);
 #endif /* __INTEL_GT_H__ */
