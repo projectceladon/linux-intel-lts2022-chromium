@@ -184,6 +184,10 @@ int __weak arch_asym_cpu_priority(int cpu)
 static unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 #endif
 
+#ifdef CONFIG_SMP
+DEFINE_STATIC_KEY_TRUE(sched_aggressive_next_balance);
+#endif
+
 #ifdef CONFIG_SYSCTL
 static struct ctl_table sched_fair_sysctls[] = {
 	{
@@ -210,6 +214,14 @@ static struct ctl_table sched_fair_sysctls[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_doulongvec_minmax,
 	},
+#ifdef CONFIG_SMP
+	{
+		.procname       = "sched_aggressive_next_balance",
+		.data           = &sched_aggressive_next_balance.key,
+		.mode           = 0644,
+		.proc_handler   = proc_do_static_key,
+	},
+#endif
 	{}
 };
 
@@ -11785,7 +11797,7 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 	if (!READ_ONCE(this_rq->rd->overload) ||
 	    (sd && this_rq->avg_idle < sd->max_newidle_lb_cost)) {
 
-		if (sd)
+		if (static_branch_likely(&sched_aggressive_next_balance) && sd)
 			update_next_balance(sd, &next_balance);
 		rcu_read_unlock();
 
@@ -11803,7 +11815,8 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 		int continue_balancing = 1;
 		u64 domain_cost;
 
-		update_next_balance(sd, &next_balance);
+		if (static_branch_likely(&sched_aggressive_next_balance))
+			update_next_balance(sd, &next_balance);
 
 		if (this_rq->avg_idle < curr_cost + sd->max_newidle_lb_cost)
 			break;
@@ -11817,6 +11830,10 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 			t1 = sched_clock_cpu(this_cpu);
 			domain_cost = t1 - t0;
 			update_newidle_cost(sd, domain_cost);
+			if (!static_branch_likely(&sched_aggressive_next_balance)) {
+				sd->last_balance = jiffies;
+				update_next_balance(sd, &next_balance);
+			}
 
 			curr_cost += domain_cost;
 			t0 = t1;
