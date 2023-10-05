@@ -474,6 +474,7 @@ config HISI_HIKEY_USB
 config NXP_UWB
 	tristate "NXP UCI(Uwb Command Interface) protocol driver support"
 	depends on SPI
+	depends on !COMPILE_TEST
 	help
 	  This option enables the UWB driver for NXP sr1xx device.
 	  Such device supports UCI packet structure, FiRa compliant.
