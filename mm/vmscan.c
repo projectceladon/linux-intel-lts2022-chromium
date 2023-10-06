@@ -191,8 +191,6 @@ struct scan_control {
  */
 int vm_swappiness = 60;
 
-struct kernfs_node *lru_gen_admin_node;
-
 static void set_task_reclaim_state(struct task_struct *task,
 				   struct reclaim_state *rs)
 {
@@ -3134,6 +3132,8 @@ static bool can_age_anon_pages(struct pglist_data *pgdat,
 }
 
 #ifdef CONFIG_LRU_GEN
+
+static struct kernfs_node *lru_gen_admin_node;
 
 #ifdef CONFIG_LRU_GEN_ENABLED
 DEFINE_STATIC_KEY_ARRAY_TRUE(lru_gen_caps, NR_LRU_GEN_CAPS);
