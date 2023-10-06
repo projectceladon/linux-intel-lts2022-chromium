@@ -126,12 +126,6 @@ static unsigned int normalized_sysctl_sched_wakeup_granularity	= 1000000UL;
 
 const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
 
-/*
- * The minimum load balance interval in jiffies that must pass before a
- * a periodic or nohz-idle balance happens.
- */
-static unsigned long __read_mostly sysctl_sched_min_load_balance_interval = 1UL;
-
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
 {
@@ -185,6 +179,12 @@ static unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 #endif
 
 #ifdef CONFIG_SMP
+/*
+ * The minimum load balance interval in jiffies that must pass before a
+ * a periodic or nohz-idle balance happens.
+ */
+static unsigned long __read_mostly sysctl_sched_min_load_balance_interval = 1UL;
+
 DEFINE_STATIC_KEY_TRUE(sched_aggressive_next_balance);
 #endif
 
@@ -207,6 +207,7 @@ static struct ctl_table sched_fair_sysctls[] = {
 		.extra1         = SYSCTL_ONE,
 	},
 #endif
+#ifdef CONFIG_SMP
 	{
 		.procname	= "sched_min_load_balance_interval",
 		.data		= &sysctl_sched_min_load_balance_interval,
@@ -214,7 +215,6 @@ static struct ctl_table sched_fair_sysctls[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_doulongvec_minmax,
 	},
-#ifdef CONFIG_SMP
 	{
 		.procname       = "sched_aggressive_next_balance",
 		.data           = &sched_aggressive_next_balance.key,
