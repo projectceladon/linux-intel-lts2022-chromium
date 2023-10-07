@@ -20,7 +20,7 @@
 struct drm_file;
 
 /**
- * struct _gsccs_client_ctx
+ * struct gsccs_client_ctx
  *
  * We dont need to allocate multiple execution resources (above struct)
  * for a single drm_client that is executing multiple PXP sessions.
