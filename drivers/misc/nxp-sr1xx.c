@@ -581,7 +581,7 @@ static int sr1xx_probe(struct spi_device *spi)
 	gpiod_irq = devm_gpiod_get(&spi->dev, "nxp,sr1xx-irq", GPIOD_IN);
 	if (IS_ERR(gpiod_irq)) {
 		dev_err(&spi->dev, "failed to do fetch irq gpio desc\n");
-		ret = gpiod_irq;
+		ret = PTR_ERR(gpiod_irq);
 		goto err_setup;
 	} else {
 		sr1xx_dev->irq_gpio = desc_to_gpio(gpiod_irq);
@@ -590,7 +590,7 @@ static int sr1xx_probe(struct spi_device *spi)
 	gpiod_ce = devm_gpiod_get(&spi->dev, "nxp,sr1xx-ce", GPIOD_OUT_LOW);
 	if (IS_ERR(gpiod_ce)) {
 		dev_err(&spi->dev, "failed to do fetch ce gpio desc\n");
-		ret = gpiod_ce;
+		ret = PTR_ERR(gpiod_ce);
 		goto err_setup;
 	} else {
 		sr1xx_dev->ce_gpio = desc_to_gpio(gpiod_ce);
@@ -599,7 +599,7 @@ static int sr1xx_probe(struct spi_device *spi)
 	gpiod_ri = devm_gpiod_get(&spi->dev, "nxp,sr1xx-ri", GPIOD_OUT_LOW);
 	if (IS_ERR(gpiod_ri)) {
 		dev_err(&spi->dev, "failed to do fetch ri gpio desc\n");
-		ret = gpiod_ri;
+		ret = PTR_ERR(gpiod_ri);
 		goto err_setup;
 	} else {
 		sr1xx_dev->spi_handshake_gpio = desc_to_gpio(gpiod_ri);
@@ -692,7 +692,7 @@ static void sr1xx_remove(struct spi_device *spi)
  * Executed before putting the system into a sleep state
  *
  */
-int sr1xx_dev_suspend(struct device *dev)
+static int sr1xx_dev_suspend(struct device *dev)
 {
 	struct sr1xx_dev *sr1xx_dev = dev_get_drvdata(dev);
 
@@ -707,7 +707,7 @@ int sr1xx_dev_suspend(struct device *dev)
  * Executed after waking the system up from a sleep state
  *
  */
-int sr1xx_dev_resume(struct device *dev)
+static int sr1xx_dev_resume(struct device *dev)
 {
 	struct sr1xx_dev *sr1xx_dev = dev_get_drvdata(dev);
 
