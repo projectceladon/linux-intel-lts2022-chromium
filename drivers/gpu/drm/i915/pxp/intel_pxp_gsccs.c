@@ -19,7 +19,7 @@
 
 struct drm_file;
 
-/**
+/*
  * struct gsccs_client_ctx
  *
  * We dont need to allocate multiple execution resources (above struct)
