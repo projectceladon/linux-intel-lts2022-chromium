@@ -301,6 +301,8 @@ static void __ieee80211_wake_txqs(struct ieee80211_sub_if_data *sdata, int ac)
 	local_bh_disable();
 	spin_lock(&fq->lock);
 
+	sdata->vif.txqs_stopped[ac] = false;
+
 	if (!test_bit(SDATA_STATE_RUNNING, &sdata->state))
 		goto out;
 
@@ -322,7 +324,7 @@ static void __ieee80211_wake_txqs(struct ieee80211_sub_if_data *sdata, int ac)
 			if (ac != txq->ac)
 				continue;
 
-			if (!test_and_clear_bit(IEEE80211_TXQ_DIRTY,
+			if (!test_and_clear_bit(IEEE80211_TXQ_STOP_NETIF_TX,
 						&txqi->flags))
 				continue;
 
@@ -337,7 +339,7 @@ static void __ieee80211_wake_txqs(struct ieee80211_sub_if_data *sdata, int ac)
 
 	txqi = to_txq_info(vif->txq);
 
-	if (!test_and_clear_bit(IEEE80211_TXQ_DIRTY, &txqi->flags) ||
+	if (!test_and_clear_bit(IEEE80211_TXQ_STOP_NETIF_TX, &txqi->flags) ||
 	    (ps && atomic_read(&ps->num_sta_ps)) || ac != vif->txq->ac)
 		goto out;
 
@@ -535,10 +537,16 @@ static void __ieee80211_stop_queue(struct ieee80211_hw *hw, int queue,
 			continue;
 
 		for (ac = 0; ac < n_acs; ac++) {
-			if (!local->ops->wake_tx_queue &&
-			    (sdata->vif.hw_queue[ac] == queue ||
-			     sdata->vif.cab_queue == queue))
-				netif_stop_subqueue(sdata->dev, ac);
+			if (sdata->vif.hw_queue[ac] == queue ||
+			    sdata->vif.cab_queue == queue) {
+				if (!local->ops->wake_tx_queue) {
+					netif_stop_subqueue(sdata->dev, ac);
+					continue;
+				}
+				spin_lock(&local->fq.lock);
+				sdata->vif.txqs_stopped[ac] = true;
+				spin_unlock(&local->fq.lock);
+			}
 		}
 	}
 	rcu_read_unlock();
