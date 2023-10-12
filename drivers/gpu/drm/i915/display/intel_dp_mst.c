@@ -290,7 +290,7 @@ static int intel_dp_dsc_mst_compute_link_config(struct intel_encoder *encoder,
 	struct drm_i915_private *i915 = to_i915(connector->base.dev);
 	int slots = -EINVAL;
 	int i, num_bpc;
-	u8 dsc_bpc[3] = {0};
+	u8 dsc_bpc[3] = {};
 	int min_bpp, max_bpp, sink_min_bpp, sink_max_bpp;
 	u8 dsc_max_bpc;
 	int min_compressed_bpp, max_compressed_bpp;
