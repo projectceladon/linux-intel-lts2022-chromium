@@ -1562,8 +1562,6 @@ static int create_sdw_dailink(struct snd_soc_card *card, int *link_index,
 	return 0;
 }
 
-#define IDISP_CODEC_MASK	0x4
-
 static int sof_card_dai_links_create(struct snd_soc_card *card)
 {
 	struct device *dev = card->dev;
@@ -1613,7 +1611,7 @@ static int sof_card_dai_links_create(struct snd_soc_card *card)
 	}
 
 	if (mach_params->codec_mask & IDISP_CODEC_MASK) {
-		ctx->idisp_codec = true;
+		ctx->hdmi.idisp_codec = true;
 
 		if (sof_sdw_quirk & SOF_SDW_TGL_HDMI)
 			hdmi_num = SOF_TGL_HDMI_COUNT;
@@ -1823,7 +1821,7 @@ HDMI:
 		if (!name)
 			return -ENOMEM;
 
-		if (ctx->idisp_codec) {
+		if (ctx->hdmi.idisp_codec) {
 			idisp_components[i].name = "ehdaudio0D2";
 			idisp_components[i].dai_name = devm_kasprintf(dev,
 								      GFP_KERNEL,
@@ -1845,7 +1843,7 @@ HDMI:
 			      1, 0, // HDMI only supports playback
 			      cpus + cpu_id, 1,
 			      idisp_components + i, 1,
-			      sof_sdw_hdmi_init, NULL);
+			      i == 0 ? sof_sdw_hdmi_init : NULL, NULL);
 		INC_ID(be_id, cpu_id, link_index);
 	}
 
@@ -1890,7 +1888,7 @@ static int sof_sdw_card_late_probe(struct snd_soc_card *card)
 		}
 	}
 
-	if (ctx->idisp_codec)
+	if (ctx->hdmi.idisp_codec)
 		ret = sof_sdw_hdmi_card_late_probe(card);
 
 	return ret;
@@ -1968,8 +1966,6 @@ static int mc_probe(struct platform_device *pdev)
 	ctx = devm_kzalloc(card->dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
-
-	INIT_LIST_HEAD(&ctx->hdmi_pcm_list);
 
 	snd_soc_card_set_drvdata(card, ctx);
 
