@@ -24,7 +24,7 @@
 #include "intel_global_state.h"
 #include "intel_gmbus.h"
 #include "intel_opregion.h"
-#include "intel_pm_types.h"
+#include "intel_wm_types.h"
 
 struct drm_i915_private;
 struct drm_property;
@@ -103,7 +103,7 @@ struct intel_audio {
 	u32 freq_cntrl;
 
 	/* current audio state for the audio component hooks */
-	struct intel_audio_state state[I915_MAX_PIPES];
+	struct intel_audio_state state[I915_MAX_TRANSCODERS];
 
 	/* necessary resource sharing with HDMI LPE audio driver. */
 	struct {
@@ -183,6 +183,17 @@ struct intel_hotplug {
 	 * blocked behind the non-DP one.
 	 */
 	struct workqueue_struct *dp_wq;
+
+	/*
+	 * Flag to track if long HPDs need not to be processed
+	 *
+	 * Some panels generate long HPDs while keep connected to the port.
+	 * This can cause issues with CI tests results. In CI systems we
+	 * don't expect to disconnect the panels and could ignore the long
+	 * HPDs generated from the faulty panels. This flag can be used as
+	 * cue to ignore the long HPDs and can be set / unset using debugfs.
+	 */
+	bool ignore_long_hpd;
 };
 
 struct intel_vbt_data {
@@ -417,6 +428,10 @@ struct intel_display {
 		 */
 		u32 state;
 	} hti;
+
+	struct {
+		bool false_color;
+	} ips;
 
 	struct {
 		struct i915_power_domains domains;
