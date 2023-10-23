@@ -1783,7 +1783,7 @@ static int intel_hdmi_source_max_tmds_clock(struct intel_encoder *encoder)
 	else
 		max_tmds_clock = 165000;
 
-	vbt_max_tmds_clock = intel_bios_max_tmds_clock(encoder);
+	vbt_max_tmds_clock = intel_bios_hdmi_max_tmds_clock(encoder->devdata);
 	if (vbt_max_tmds_clock)
 		max_tmds_clock = min(max_tmds_clock, vbt_max_tmds_clock);
 
@@ -2142,7 +2142,7 @@ bool intel_hdmi_limited_color_range(const struct intel_crtc_state *crtc_state,
 	 * Our YCbCr output is always limited range.
 	 * crtc_state->limited_color_range only applies to RGB,
 	 * and it must never be set for YCbCr or we risk setting
-	 * some conflicting bits in PIPECONF which will mess up
+	 * some conflicting bits in TRANSCONF which will mess up
 	 * the colors on the monitor.
 	 */
 	if (crtc_state->output_format != INTEL_OUTPUT_FORMAT_RGB)
@@ -2230,6 +2230,25 @@ static bool intel_hdmi_is_cloned(const struct intel_crtc_state *crtc_state)
 		!is_power_of_2(crtc_state->uapi.encoder_mask);
 }
 
+static bool source_supports_scrambling(struct intel_encoder *encoder)
+{
+	/*
+	 * Gen 10+ support HDMI 2.0 : the max tmds clock is 594MHz, and
+	 * scrambling is supported.
+	 * But there seem to be cases where certain platforms that support
+	 * HDMI 2.0, have an HDMI1.4 retimer chip, and the max tmds clock is
+	 * capped by VBT to less than 340MHz.
+	 *
+	 * In such cases when an HDMI2.0 sink is connected, it creates a
+	 * problem : the platform and the sink both support scrambling but the
+	 * HDMI 1.4 retimer chip doesn't.
+	 *
+	 * So go for scrambling, based on the max tmds clock taking into account,
+	 * restrictions coming from VBT.
+	 */
+	return intel_hdmi_source_max_tmds_clock(encoder) > 340000;
+}
+
 int intel_hdmi_compute_config(struct intel_encoder *encoder,
 			      struct intel_crtc_state *pipe_config,
 			      struct drm_connector_state *conn_state)
@@ -2292,7 +2311,7 @@ int intel_hdmi_compute_config(struct intel_encoder *encoder,
 
 	pipe_config->lane_count = 4;
 
-	if (scdc->scrambling.supported && DISPLAY_VER(dev_priv) >= 10) {
+	if (scdc->scrambling.supported && source_supports_scrambling(encoder)) {
 		if (scdc->scrambling.low_rates)
 			pipe_config->hdmi_scrambling = true;
 
@@ -2633,11 +2652,8 @@ bool intel_hdmi_handle_sink_scrambling(struct intel_encoder *encoder,
 				       bool scrambling)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(encoder);
 	struct drm_scrambling *sink_scrambling =
 		&connector->display_info.hdmi.scdc.scrambling;
-	struct i2c_adapter *adapter =
-		intel_gmbus_get_adapter(dev_priv, intel_hdmi->ddc_bus);
 
 	if (!sink_scrambling->supported)
 		return true;
@@ -2648,9 +2664,8 @@ bool intel_hdmi_handle_sink_scrambling(struct intel_encoder *encoder,
 		    str_yes_no(scrambling), high_tmds_clock_ratio ? 40 : 10);
 
 	/* Set TMDS bit clock ratio to 1/40 or 1/10, and enable/disable scrambling */
-	return drm_scdc_set_high_tmds_clock_ratio(adapter,
-						  high_tmds_clock_ratio) &&
-		drm_scdc_set_scrambling(adapter, scrambling);
+	return drm_scdc_set_high_tmds_clock_ratio(connector, high_tmds_clock_ratio) &&
+		drm_scdc_set_scrambling(connector, scrambling);
 }
 
 static u8 chv_port_to_ddc_pin(struct drm_i915_private *dev_priv, enum port port)
@@ -2842,11 +2857,12 @@ static u8 intel_hdmi_ddc_pin(struct intel_encoder *encoder)
 	enum port port = encoder->port;
 	u8 ddc_pin;
 
-	ddc_pin = intel_bios_alternate_ddc_pin(encoder);
+	ddc_pin = intel_bios_hdmi_ddc_pin(encoder->devdata);
 	if (ddc_pin) {
 		drm_dbg_kms(&dev_priv->drm,
-			    "Using DDC pin 0x%x for port %c (VBT)\n",
-			    ddc_pin, port_name(port));
+			    "[ENCODER:%d:%s] Using DDC pin 0x%x (VBT)\n",
+			    encoder->base.base.id, encoder->base.name,
+			    ddc_pin);
 		return ddc_pin;
 	}
 
@@ -2872,8 +2888,9 @@ static u8 intel_hdmi_ddc_pin(struct intel_encoder *encoder)
 		ddc_pin = g4x_port_to_ddc_pin(dev_priv, port);
 
 	drm_dbg_kms(&dev_priv->drm,
-		    "Using DDC pin 0x%x for port %c (platform default)\n",
-		    ddc_pin, port_name(port));
+		    "[ENCODER:%d:%s] Using DDC pin 0x%x (platform default)\n",
+		    encoder->base.base.id, encoder->base.name,
+		    ddc_pin);
 
 	return ddc_pin;
 }
@@ -2894,7 +2911,7 @@ void intel_infoframe_init(struct intel_digital_port *dig_port)
 		dig_port->set_infoframes = g4x_set_infoframes;
 		dig_port->infoframes_enabled = g4x_infoframes_enabled;
 	} else if (HAS_DDI(dev_priv)) {
-		if (intel_bios_is_lspcon_present(dev_priv, dig_port->base.port)) {
+		if (intel_bios_encoder_is_lspcon(dig_port->base.devdata)) {
 			dig_port->write_infoframe = lspcon_write_infoframe;
 			dig_port->read_infoframe = lspcon_read_infoframe;
 			dig_port->set_infoframes = lspcon_set_infoframes;

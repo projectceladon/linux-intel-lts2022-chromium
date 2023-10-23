@@ -79,11 +79,11 @@
 #include "soc/intel_dram.h"
 #include "soc/intel_gmch.h"
 
-#include "i915_file_private.h"
 #include "i915_debugfs.h"
 #include "i915_driver.h"
 #include "i915_drm_client.h"
 #include "i915_drv.h"
+#include "i915_file_private.h"
 #include "i915_getparam.h"
 #include "i915_hwmon.h"
 #include "i915_ioc32.h"
@@ -97,11 +97,11 @@
 #include "i915_sysfs.h"
 #include "i915_utils.h"
 #include "i915_vgpu.h"
+#include "intel_clock_gating.h"
 #include "intel_gvt.h"
 #include "intel_memory_region.h"
 #include "intel_pci_config.h"
 #include "intel_pcode.h"
-#include "intel_pm.h"
 #include "intel_region_ttm.h"
 #include "vlv_suspend.h"
 
@@ -167,6 +167,8 @@ static void intel_detect_preproduction_hw(struct drm_i915_private *dev_priv)
 	pre |= IS_KABYLAKE(dev_priv) && INTEL_REVID(dev_priv) < 0x1;
 	pre |= IS_GEMINILAKE(dev_priv) && INTEL_REVID(dev_priv) < 0x3;
 	pre |= IS_ICELAKE(dev_priv) && INTEL_REVID(dev_priv) < 0x7;
+	pre |= IS_TIGERLAKE(dev_priv) && INTEL_REVID(dev_priv) < 0x1;
+	pre |= IS_DG1(dev_priv) && INTEL_REVID(dev_priv) < 0x1;
 
 	if (pre) {
 		drm_err(&dev_priv->drm, "This is a pre-production stepping. "
@@ -250,7 +252,7 @@ static int i915_driver_early_probe(struct drm_i915_private *dev_priv)
 
 	intel_irq_init(dev_priv);
 	intel_init_display_hooks(dev_priv);
-	intel_init_clock_gating_hooks(dev_priv);
+	intel_clock_gating_hooks_init(dev_priv);
 
 	intel_detect_preproduction_hw(dev_priv);
 
@@ -466,7 +468,9 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 	if (ret)
 		return ret;
 
-	i915_perf_init(dev_priv);
+	ret = i915_perf_init(dev_priv);
+	if (ret)
+		return ret;
 
 	ret = i915_ggtt_probe_hw(dev_priv);
 	if (ret)
@@ -480,13 +484,17 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 	if (ret)
 		goto err_ggtt;
 
-	ret = intel_memory_regions_hw_probe(dev_priv);
+	/*
+	 * Make sure we probe lmem before we probe stolen-lmem. The BAR size
+	 * might be different due to bar resizing.
+	 */
+	ret = intel_gt_tiles_init(dev_priv);
 	if (ret)
 		goto err_ggtt;
 
-	ret = intel_gt_tiles_init(dev_priv);
+	ret = intel_memory_regions_hw_probe(dev_priv);
 	if (ret)
-		goto err_mem_regions;
+		goto err_ggtt;
 
 	ret = i915_ggtt_enable_hw(dev_priv);
 	if (ret) {
@@ -528,7 +536,7 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 
 	ret = i915_pcode_init(dev_priv);
 	if (ret)
-		goto err_msi;
+		goto err_opregion;
 
 	/*
 	 * Fill the dram structure to get the system dram info. This will be
@@ -540,6 +548,8 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 
 	return 0;
 
+err_opregion:
+	intel_opregion_cleanup(dev_priv);
 err_msi:
 	if (pdev->msi_enabled)
 		pci_disable_msi(pdev);
@@ -563,6 +573,8 @@ static void i915_driver_hw_remove(struct drm_i915_private *dev_priv)
 	struct pci_dev *pdev = to_pci_dev(dev_priv->drm.dev);
 
 	i915_perf_fini(dev_priv);
+
+	intel_opregion_cleanup(dev_priv);
 
 	if (pdev->msi_enabled)
 		pci_disable_msi(pdev);
@@ -913,7 +925,9 @@ static int i915_driver_open(struct drm_device *dev, struct drm_file *file)
  */
 static void i915_driver_lastclose(struct drm_device *dev)
 {
-	intel_fbdev_restore_mode(dev);
+	struct drm_i915_private *i915 = to_i915(dev);
+
+	intel_fbdev_restore_mode(i915);
 
 	vga_switcheroo_process_delayed_switch();
 }
@@ -1216,7 +1230,7 @@ static int i915_drm_resume(struct drm_device *dev)
 	i915_gem_resume(dev_priv);
 
 	intel_modeset_init_hw(dev_priv);
-	intel_init_clock_gating(dev_priv);
+	intel_clock_gating_init(dev_priv);
 	intel_hpd_init(dev_priv);
 
 	/* MST sideband requires HPD interrupts enabled */
