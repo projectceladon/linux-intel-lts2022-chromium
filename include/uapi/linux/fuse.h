@@ -311,6 +311,7 @@ struct fuse_file_lock {
  * FOPEN_CACHE_DIR: allow caching this directory
  * FOPEN_STREAM: the file is stream-like (no file position at all)
  * FOPEN_NOFLUSH: don't flush data cache on close (unless FUSE_WRITEBACK_CACHE)
+ * FOPEN_FILE_CREATED: the file was indeed created
  */
 #define FOPEN_DIRECT_IO		(1 << 0)
 #define FOPEN_KEEP_CACHE	(1 << 1)
@@ -318,6 +319,7 @@ struct fuse_file_lock {
 #define FOPEN_CACHE_DIR		(1 << 3)
 #define FOPEN_STREAM		(1 << 4)
 #define FOPEN_NOFLUSH		(1 << 5)
+#define FOPEN_FILE_CREATED	(1 << 7)
 
 /**
  * INIT request/reply flags
@@ -571,6 +573,12 @@ enum fuse_opcode {
 	/* Reserved opcodes: helpful to detect structure endian-ness */
 	CUSE_INIT_BSWAP_RESERVED	= 1048576,	/* CUSE_INIT << 8 */
 	FUSE_INIT_BSWAP_RESERVED	= 436207616,	/* FUSE_INIT << 24 */
+
+	/*
+	 * TODO(b/310102543): Update the opcode keep same with kernel patch
+	 * after the atomic open kernel patch is merged to upstream.
+	 */
+	FUSE_OPEN_ATOMIC	= 0xfffffffe, /* u32::MAX - 1 */
 
 	/* Chrome OS extensions */
 	FUSE_CHROMEOS_TMPFILE	= 0xffffffff,	/* u32::MAX */
