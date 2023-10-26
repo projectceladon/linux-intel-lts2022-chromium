@@ -312,6 +312,7 @@ struct hid_item {
 #define HID_DG_LATENCYMODE	0x000d0060
 
 #define HID_BAT_ABSOLUTESTATEOFCHARGE	0x00850065
+#define HID_BAT_CHARGING		0x00850044
 
 #define HID_VD_ASUS_CUSTOM_MEDIA_KEYS	0xff310076
 
@@ -618,6 +619,7 @@ struct hid_device {							/* device report descriptor */
 	__u64 battery_serial_number;
 	__u64 battery_new_serial_number;				/* gather entire updated 64-bit SN here for end of report */
 	char battery_serial_number_str[17];				/* Space for max 16 hex digits */
+	__s32 battery_charge_status;
 	enum hid_battery_status battery_status;
 	bool battery_avoid_query;
 	bool battery_state_changed;					/* a battery field has been changed within the current report */
