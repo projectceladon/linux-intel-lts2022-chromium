@@ -4118,6 +4118,13 @@ retry:
 }
 EXPORT_SYMBOL_GPL(rcu_barrier);
 
+bool rcu_cpu_online(int cpu)
+{
+	struct rcu_data *rdp = per_cpu_ptr(&rcu_data, cpu);
+
+	return rcu_rdp_cpu_online(rdp);
+}
+
 /*
  * Propagate ->qsinitmask bits up the rcu_node tree to account for the
  * first CPU in a given leaf rcu_node structure coming online.  The caller
