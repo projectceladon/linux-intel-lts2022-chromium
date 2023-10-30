@@ -392,7 +392,8 @@ struct fuse_file_lock {
 /* bits 32..63 get shifted down 32 bits into the flags2 field */
 #define FUSE_SECURITY_CTX	(1ULL << 32)
 #define FUSE_HAS_INODE_DAX	(1ULL << 33)
-#define FUSE_PASSTHROUGH	(1ULL << 34)
+/* to avoid conflicts, non-upstream flags should be in the rightmost bits */
+#define FUSE_PASSTHROUGH	(1ULL << 63)
 
 /**
  * CUSE INIT request/reply flags
