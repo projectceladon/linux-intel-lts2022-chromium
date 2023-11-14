@@ -34,10 +34,6 @@ struct device *create_function_device(char *name)
 		return ERR_PTR(-EINVAL);
 }
 EXPORT_SYMBOL_GPL(create_function_device);
-#else
-#ifdef CONFIG_USB_CONFIGFS_F_ACC
-static inline void acc_disconnect(void) {}
-#endif
 #endif
 
 int check_user_usb_string(const char *name,
@@ -1567,8 +1563,11 @@ static int android_setup(struct usb_gadget *gadget,
 		value = acc_ctrlrequest_composite(cdev, c);
 #endif
 
-	if (value < 0)
+	if (value < 0) {
+		spin_lock_irqsave(&gi->spinlock, flags);
 		value = composite_setup(gadget, c);
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+	}
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
@@ -1873,7 +1872,7 @@ static struct config_group *gadgets_make(
 		goto out_free_driver_name;
 
 	if (android_device_create(gi) < 0)
-		goto err;
+		goto out_free_driver_name;
 
 	return &gi->group;
 
