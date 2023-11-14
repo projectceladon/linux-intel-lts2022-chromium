@@ -2366,7 +2366,7 @@ static inline bool
 iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,
 				 bool unencrypted, int link_id)
 {
-	return cfg80211_rx_control_port(dev, skb, unencrypted);
+	return cfg80211_rx_control_port(dev, skb, unencrypted, link_id);
 }
 
 #define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port

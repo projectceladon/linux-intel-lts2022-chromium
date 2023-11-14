@@ -400,8 +400,7 @@ int ovl_xattr_get(struct dentry *dentry, struct inode *inode, const char *name,
 
 	ovl_i_path_real(inode, &realpath);
 	old_cred = ovl_override_creds(dentry->d_sb);
-	res = __vfs_getxattr(mnt_user_ns(realpath.mnt), realpath.dentry,
-			     d_inode(realpath.dentry), name, value, size, flags);
+	res = vfs_getxattr(mnt_user_ns(realpath.mnt), realpath.dentry, name, value, size);
 	ovl_revert_creds(dentry->d_sb, old_cred);
 	return res;
 }
@@ -649,7 +648,7 @@ int ovl_fileattr_set(struct user_namespace *mnt_userns,
 		err = ovl_set_protattr(inode, upperpath.dentry, fa);
 		if (!err)
 			err = ovl_real_fileattr_set(&upperpath, fa);
-		revert_creds(old_cred);
+		ovl_revert_creds(inode->i_sb, old_cred);
 
 		/*
 		 * Merge real inode flags with inode flags read from
@@ -711,7 +710,7 @@ int ovl_fileattr_get(struct dentry *dentry, struct fileattr *fa)
 	old_cred = ovl_override_creds(inode->i_sb);
 	err = ovl_real_fileattr_get(&realpath, fa);
 	ovl_fileattr_prot_flags(inode, fa);
-	revert_creds(old_cred);
+	ovl_revert_creds(inode->i_sb, old_cred);
 
 	return err;
 }

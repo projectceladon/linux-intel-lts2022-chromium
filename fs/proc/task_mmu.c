@@ -21,6 +21,7 @@
 #include <linux/pkeys.h>
 #include <linux/random.h>
 #include <linux/mm_inline.h>
+#include <trace/hooks/mm.h>
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -406,6 +407,9 @@ struct mem_size_stats {
 	unsigned long shmem_thp;
 	unsigned long file_thp;
 	unsigned long swap;
+	unsigned long writeback;
+	unsigned long same;
+	unsigned long huge;
 	unsigned long shared_hugetlb;
 	unsigned long private_hugetlb;
 	u64 pss;
@@ -555,6 +559,9 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 			} else {
 				mss->swap_pss += (u64)PAGE_SIZE << PSS_SHIFT;
 			}
+			trace_android_vh_smaps_pte_entry(swpent,
+					&mss->writeback,
+					&mss->same, &mss->huge);
 		} else if (is_pfn_swap_entry(swpent)) {
 			if (is_migration_entry(swpent))
 				migration = true;
@@ -754,12 +761,14 @@ static int smaps_hugetlb_range(pte_t *pte, unsigned long hmask,
 static const struct mm_walk_ops smaps_walk_ops = {
 	.pmd_entry		= smaps_pte_range,
 	.hugetlb_entry		= smaps_hugetlb_range,
+	.walk_lock		= PGWALK_RDLOCK,
 };
 
 static const struct mm_walk_ops smaps_shmem_walk_ops = {
 	.pmd_entry		= smaps_pte_range,
 	.hugetlb_entry		= smaps_hugetlb_range,
 	.pte_hole		= smaps_pte_hole,
+	.walk_lock		= PGWALK_RDLOCK,
 };
 
 /*
@@ -847,6 +856,7 @@ static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss,
 	SEQ_PUT_DEC(" kB\nLocked:         ",
 					mss->pss_locked >> PSS_SHIFT);
 	seq_puts(m, " kB\n");
+	trace_android_vh_show_smap(m, mss->writeback, mss->same, mss->huge);
 }
 
 static int show_smap(struct seq_file *m, void *v)
@@ -1381,6 +1391,7 @@ static int clear_refs_test_walk(unsigned long start, unsigned long end,
 static const struct mm_walk_ops clear_refs_walk_ops = {
 	.pmd_entry		= clear_refs_pte_range,
 	.test_walk		= clear_refs_test_walk,
+	.walk_lock		= PGWALK_WRLOCK,
 };
 
 static ssize_t clear_refs_write(struct file *file, const char __user *buf,
@@ -1434,7 +1445,7 @@ static ssize_t clear_refs_write(struct file *file, const char __user *buf,
 			mas_for_each(&mas, vma, ULONG_MAX) {
 				if (!(vma->vm_flags & VM_SOFTDIRTY))
 					continue;
-				vma->vm_flags &= ~VM_SOFTDIRTY;
+				vm_flags_clear(vma, VM_SOFTDIRTY);
 				vma_set_page_prot(vma);
 			}
 
@@ -1757,6 +1768,7 @@ static const struct mm_walk_ops pagemap_ops = {
 	.pmd_entry	= pagemap_pmd_range,
 	.pte_hole	= pagemap_pte_hole,
 	.hugetlb_entry	= pagemap_hugetlb_range,
+	.walk_lock	= PGWALK_RDLOCK,
 };
 
 /*
@@ -2469,6 +2481,7 @@ static int gather_hugetlb_stats(pte_t *pte, unsigned long hmask,
 static const struct mm_walk_ops show_numa_ops = {
 	.hugetlb_entry = gather_hugetlb_stats,
 	.pmd_entry = gather_pte_stats,
+	.walk_lock = PGWALK_RDLOCK,
 };
 
 /*

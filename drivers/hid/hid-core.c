@@ -32,6 +32,7 @@
 #include <linux/hiddev.h>
 #include <linux/hid-debug.h>
 #include <linux/hidraw.h>
+#include <linux/uhid.h>
 
 #include "hid-ids.h"
 
@@ -293,8 +294,8 @@ static int hid_add_field(struct hid_parser *parser, unsigned report_type, unsign
 	offset = report->size;
 	report->size += parser->global.report_size * parser->global.report_count;
 
-	if (parser->device->ll_driver->max_buffer_size)
-		max_buffer_size = parser->device->ll_driver->max_buffer_size;
+	if (IS_ENABLED(CONFIG_UHID) && parser->device->ll_driver == &uhid_hid_driver)
+		max_buffer_size = UHID_DATA_MAX;
 
 	/* Total size check: Allow for possible report index byte */
 	if (report->size > (max_buffer_size - 1) << 3) {
@@ -2003,8 +2004,8 @@ int hid_report_raw_event(struct hid_device *hid, enum hid_report_type type, u8 *
 
 	rsize = hid_compute_report_size(report);
 
-	if (hid->ll_driver->max_buffer_size)
-		max_buffer_size = hid->ll_driver->max_buffer_size;
+	if (IS_ENABLED(CONFIG_UHID) && hid->ll_driver == &uhid_hid_driver)
+		max_buffer_size = UHID_DATA_MAX;
 
 	if (report_enum->numbered && rsize >= max_buffer_size)
 		rsize = max_buffer_size - 1;
@@ -2414,8 +2415,8 @@ int hid_hw_raw_request(struct hid_device *hdev,
 {
 	unsigned int max_buffer_size = HID_MAX_BUFFER_SIZE;
 
-	if (hdev->ll_driver->max_buffer_size)
-		max_buffer_size = hdev->ll_driver->max_buffer_size;
+	if (IS_ENABLED(CONFIG_UHID) && hdev->ll_driver == &uhid_hid_driver)
+		max_buffer_size = UHID_DATA_MAX;
 
 	if (len < 1 || len > max_buffer_size || !buf)
 		return -EINVAL;
@@ -2438,8 +2439,8 @@ int hid_hw_output_report(struct hid_device *hdev, __u8 *buf, size_t len)
 {
 	unsigned int max_buffer_size = HID_MAX_BUFFER_SIZE;
 
-	if (hdev->ll_driver->max_buffer_size)
-		max_buffer_size = hdev->ll_driver->max_buffer_size;
+	if (IS_ENABLED(CONFIG_UHID) && hdev->ll_driver == &uhid_hid_driver)
+		max_buffer_size = UHID_DATA_MAX;
 
 	if (len < 1 || len > max_buffer_size || !buf)
 		return -EINVAL;

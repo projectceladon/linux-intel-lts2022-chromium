@@ -5,6 +5,7 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
+#include <linux/android_kabi.h>
 
 struct pwm_chip;
 
@@ -99,6 +100,8 @@ struct pwm_device {
 	struct pwm_args args;
 	struct pwm_state state;
 	struct pwm_state last;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -304,6 +307,7 @@ struct pwm_ops {
 	int (*get_output_type_supported)(struct pwm_chip *chip,
 			struct pwm_device *pwm);
 	struct module *owner;
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -330,6 +334,8 @@ struct pwm_chip {
 	/* only used internally by the PWM framework */
 	struct list_head list;
 	struct pwm_device *pwms;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #if IS_ENABLED(CONFIG_PWM)
