@@ -29,3 +29,5 @@ mtk_apu_mdw-objs += midware/$(APUSYS_VERSION_MIDWARE)/rv/mdw_rv.o
 mtk_apu_mdw-objs += midware/$(APUSYS_VERSION_MIDWARE)/rv/mdw_rv_cmd.o
 mtk_apu_mdw-objs += midware/$(APUSYS_VERSION_MIDWARE)/rv/mdw_rv_cmd_v3.o
 mtk_apu_mdw-objs += midware/$(APUSYS_VERSION_MIDWARE)/rv/mdw_rv_dev.o
+
+obj-$(CONFIG_MTK_APUSYS_SUPPORT) += mtk_apu_pwr_ipi_rx.o
