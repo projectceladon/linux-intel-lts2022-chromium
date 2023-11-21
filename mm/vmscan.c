@@ -191,8 +191,6 @@ struct scan_control {
  */
 int vm_swappiness = 60;
 
-struct kernfs_node *lru_gen_admin_node;
-
 static void set_task_reclaim_state(struct task_struct *task,
 				   struct reclaim_state *rs)
 {
@@ -203,28 +201,6 @@ static void set_task_reclaim_state(struct task_struct *task,
 	WARN_ON_ONCE(!rs && !task->reclaim_state);
 
 	task->reclaim_state = rs;
-}
-
-int min_filelist_kbytes_handler(struct ctl_table *table, int write,
-				void *buf, size_t *len, loff_t *pos)
-{
-	size_t written;
-
-	if (!lru_gen_enabled() || write)
-		return proc_dointvec(table, write, buf, len, pos);
-
-	if (!*len || *pos) {
-		*len = 0;
-		return 0;
-	}
-
-	written = min_t(size_t, 2, *len);
-	memcpy(buf, "0\n", written);
-
-	*len = written;
-	*pos = written;
-
-	return 0;
 }
 
 LIST_HEAD(shrinker_list);
@@ -2937,28 +2913,6 @@ static void prepare_scan_count(pg_data_t *pgdat, struct scan_control *sc)
 }
 
 /*
- * Low watermark used to prevent fscache thrashing during low memory.
- */
-int min_filelist_kbytes;
-
-/*
- * Check low watermark used to prevent fscache thrashing during low memory.
- */
-static int file_is_low(struct lruvec *lruvec)
-{
-	unsigned long size;
-
-	if (!mem_cgroup_disabled())
-		return false;
-
-	size = node_page_state(lruvec_pgdat(lruvec), NR_ACTIVE_FILE);
-	size += node_page_state(lruvec_pgdat(lruvec), NR_INACTIVE_FILE);
-	size <<= (PAGE_SHIFT - 10);
-
-	return size < min_filelist_kbytes;
-}
-
-/*
  * Determine how aggressively the anon and file LRU lists should be
  * scanned.
  *
@@ -2993,15 +2947,6 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	 */
 	if (cgroup_reclaim(sc) && !swappiness) {
 		scan_balance = SCAN_FILE;
-		goto out;
-	}
-
-	/*
-	 * Do not scan file pages when swap is allowed by __GFP_IO and
-	 * file page count is low.
-	 */
-	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec)) {
-		scan_balance = SCAN_ANON;
 		goto out;
 	}
 
@@ -3187,6 +3132,8 @@ static bool can_age_anon_pages(struct pglist_data *pgdat,
 }
 
 #ifdef CONFIG_LRU_GEN
+
+static struct kernfs_node *lru_gen_admin_node;
 
 #ifdef CONFIG_LRU_GEN_ENABLED
 DEFINE_STATIC_KEY_ARRAY_TRUE(lru_gen_caps, NR_LRU_GEN_CAPS);
@@ -4468,6 +4415,7 @@ static void inc_max_seq(struct lruvec *lruvec, bool can_swap, bool force_scan)
 	int type, zone;
 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
 
+restart:
 	spin_lock_irq(&lruvec->lru_lock);
 
 	VM_WARN_ON_ONCE(!seq_is_valid(lruvec));
@@ -4478,11 +4426,12 @@ static void inc_max_seq(struct lruvec *lruvec, bool can_swap, bool force_scan)
 
 		VM_WARN_ON_ONCE(!force_scan && (type == LRU_GEN_FILE || can_swap));
 
-		while (!inc_min_seq(lruvec, type, can_swap)) {
-			spin_unlock_irq(&lruvec->lru_lock);
-			cond_resched();
-			spin_lock_irq(&lruvec->lru_lock);
-		}
+		if (inc_min_seq(lruvec, type, can_swap))
+			continue;
+
+		spin_unlock_irq(&lruvec->lru_lock);
+		cond_resched();
+		goto restart;
 	}
 
 	/*
@@ -4822,7 +4771,8 @@ bool lru_gen_look_around(struct page_vma_mapped_walk *pvmw)
  *                          the eviction
  ******************************************************************************/
 
-static bool sort_folio(struct lruvec *lruvec, struct folio *folio, int tier_idx)
+static bool sort_folio(struct lruvec *lruvec, struct folio *folio, struct scan_control *sc,
+		       int tier_idx)
 {
 	bool success;
 	int gen = folio_lru_gen(folio);
@@ -4870,6 +4820,13 @@ static bool sort_folio(struct lruvec *lruvec, struct folio *folio, int tier_idx)
 		WRITE_ONCE(lrugen->protected[hist][type][tier - 1],
 			   lrugen->protected[hist][type][tier - 1] + delta);
 		__mod_lruvec_state(lruvec, WORKINGSET_ACTIVATE_BASE + type, delta);
+		return true;
+	}
+
+	/* ineligible */
+	if (zone > sc->reclaim_idx) {
+		gen = folio_inc_gen(lruvec, folio, false);
+		list_move_tail(&folio->lru, &lrugen->folios[gen][type][zone]);
 		return true;
 	}
 
@@ -4921,7 +4878,8 @@ static bool isolate_folio(struct lruvec *lruvec, struct folio *folio, struct sca
 static int scan_folios(struct lruvec *lruvec, struct scan_control *sc,
 		       int type, int tier, struct list_head *list)
 {
-	int gen, zone;
+	int i;
+	int gen;
 	enum vm_event_item item;
 	int sorted = 0;
 	int scanned = 0;
@@ -4937,9 +4895,10 @@ static int scan_folios(struct lruvec *lruvec, struct scan_control *sc,
 
 	gen = lru_gen_from_seq(lrugen->min_seq[type]);
 
-	for (zone = sc->reclaim_idx; zone >= 0; zone--) {
+	for (i = MAX_NR_ZONES; i > 0; i--) {
 		LIST_HEAD(moved);
 		int skipped = 0;
+		int zone = (sc->reclaim_idx + i) % MAX_NR_ZONES;
 		struct list_head *head = &lrugen->folios[gen][type][zone];
 
 		while (!list_empty(head)) {
@@ -4953,7 +4912,7 @@ static int scan_folios(struct lruvec *lruvec, struct scan_control *sc,
 
 			scanned += delta;
 
-			if (sort_folio(lruvec, folio, tier))
+			if (sort_folio(lruvec, folio, sc, tier))
 				sorted += delta;
 			else if (isolate_folio(lruvec, folio, sc)) {
 				list_add(&folio->lru, list);

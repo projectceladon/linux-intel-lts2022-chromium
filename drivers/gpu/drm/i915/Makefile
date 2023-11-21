@@ -47,12 +47,10 @@ i915-y += i915_driver.o \
 	  i915_switcheroo.o \
 	  i915_sysfs.o \
 	  i915_utils.o \
+	  intel_clock_gating.o \
 	  intel_device_info.o \
-	  intel_dram.o \
 	  intel_memory_region.o \
-	  intel_pch.o \
 	  intel_pcode.o \
-	  intel_pm.o \
 	  intel_region_ttm.o \
 	  intel_runtime_pm.o \
 	  intel_sbi.o \
@@ -61,6 +59,12 @@ i915-y += i915_driver.o \
 	  intel_wakeref.o \
 	  vlv_sideband.o \
 	  vlv_suspend.o
+
+# core peripheral code
+i915-y += \
+	soc/intel_dram.o \
+	soc/intel_gmch.o \
+	soc/intel_pch.o
 
 # core library code
 i915-y += \
@@ -127,6 +131,7 @@ gt-y += \
 	gt/intel_sseu.o \
 	gt/intel_sseu_debugfs.o \
 	gt/intel_timeline.o \
+	gt/intel_tlb.o \
 	gt/intel_wopcm.o \
 	gt/intel_workarounds.o \
 	gt/shmem_utils.o \
@@ -238,6 +243,7 @@ i915-y += \
 	display/intel_display_power.o \
 	display/intel_display_power_map.o \
 	display/intel_display_power_well.o \
+	display/intel_display_rps.o \
 	display/intel_dmc.o \
 	display/intel_dpio_phy.o \
 	display/intel_dpll.o \
@@ -267,7 +273,9 @@ i915-y += \
 	display/intel_psr.o \
 	display/intel_quirks.o \
 	display/intel_sprite.o \
+	display/intel_sprite_uapi.o \
 	display/intel_tc.o \
+	display/intel_vblank.o \
 	display/intel_vga.o \
 	display/intel_wm.o \
 	display/i9xx_plane.o \
@@ -367,6 +375,13 @@ include $(src)/gvt/Makefile
 obj-$(CONFIG_DRM_I915) += i915.o
 obj-$(CONFIG_DRM_I915_GVT_KVMGT) += kvmgt.o
 
+# kernel-doc test
+#
+# Enable locally for CONFIG_DRM_I915_WERROR=y. See also scripts/Makefile.build
+ifdef CONFIG_DRM_I915_WERROR
+    cmd_checkdoc = $(srctree)/scripts/kernel-doc -none $<
+endif
+
 # header test
 
 # exclude some broken headers from the test coverage
@@ -378,7 +393,8 @@ always-$(CONFIG_DRM_I915_WERROR) += \
 		$(shell cd $(srctree)/$(src) && find * -name '*.h')))
 
 quiet_cmd_hdrtest = HDRTEST $(patsubst %.hdrtest,%.h,$@)
-      cmd_hdrtest = $(CC) $(filter-out $(CFLAGS_GCOV), $(c_flags)) -S -o /dev/null -x c /dev/null -include $<; touch $@
+      cmd_hdrtest = $(CC) $(filter-out $(CFLAGS_GCOV), $(c_flags)) -S -o /dev/null -x c /dev/null -include $<; \
+		$(srctree)/scripts/kernel-doc -none $<; touch $@
 
 $(obj)/%.hdrtest: $(src)/%.h FORCE
 	$(call if_changed_dep,hdrtest)

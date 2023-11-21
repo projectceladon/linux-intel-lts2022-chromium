@@ -470,6 +470,27 @@ static int cros_typec_usb_safe_state(struct cros_typec_port *port)
 	return ret;
 }
 
+/**
+ * cros_typec_get_cable_vdo() - Get Cable VDO of the connected cable
+ * @port: Type-C port data
+ * @svid: Standard or Vendor ID to match
+ *
+ * Returns the Cable VDO if match is found and returns 0 if match is not found.
+ */
+static int cros_typec_get_cable_vdo(struct cros_typec_port *port, u16 svid)
+{
+	struct list_head *head = &port->plug_mode_list;
+	struct cros_typec_altmode_node *node;
+	u32 ret = 0;
+
+	list_for_each_entry(node, head, list) {
+		if (node->amode->svid == svid)
+			return node->amode->vdo;
+	}
+
+	return ret;
+}
+
 /*
  * Spoof the VDOs that were likely communicated by the partner for TBT alt
  * mode.
@@ -496,6 +517,9 @@ static int cros_typec_enable_tbt(struct cros_typec_data *typec,
 
 	/* Cable Discover Mode VDO */
 	data.cable_mode = TBT_MODE;
+
+	data.cable_mode |= cros_typec_get_cable_vdo(port, USB_TYPEC_TBT_SID);
+
 	data.cable_mode |= TBT_SET_CABLE_SPEED(pd_ctrl->cable_speed);
 
 	if (pd_ctrl->control_flags & USB_PD_CTRL_OPTICAL_CABLE)
@@ -532,6 +556,8 @@ static int cros_typec_enable_dp(struct cros_typec_data *typec,
 {
 	struct cros_typec_port *port = typec->ports[port_num];
 	struct typec_displayport_data dp_data;
+	u32 cable_tbt_vdo;
+	u32 cable_dp_vdo;
 	int ret;
 
 	if (typec->pd_ctrl_ver < 2) {
@@ -564,6 +590,32 @@ static int cros_typec_enable_dp(struct cros_typec_data *typec,
 	port->state.data = &dp_data;
 	port->state.mode = TYPEC_MODAL_STATE(ffs(pd_ctrl->dp_mode));
 
+	/* Get cable VDO for cables with DPSID to check DPAM2.1 is supported */
+	cable_dp_vdo = cros_typec_get_cable_vdo(port, USB_TYPEC_DP_SID);
+
+	/**
+	 * Get cable VDO for thunderbolt cables and cables with DPSID but does not
+	 * support DPAM2.1.
+	 */
+	cable_tbt_vdo = cros_typec_get_cable_vdo(port, USB_TYPEC_TBT_SID);
+
+	if (cable_dp_vdo & DP_CAP_DPAM_VERSION) {
+		dp_data.conf |= cable_dp_vdo;
+	} else if (cable_tbt_vdo) {
+		dp_data.conf |=  TBT_CABLE_SPEED(cable_tbt_vdo) << DP_CONF_SIGNALLING_SHIFT;
+
+		/* Cable Type */
+		if (cable_tbt_vdo & TBT_CABLE_OPTICAL)
+			dp_data.conf |= DP_CONF_CABLE_TYPE_OPTICAL << DP_CONF_CABLE_TYPE_SHIFT;
+		else if (cable_tbt_vdo & TBT_CABLE_RETIMER)
+			dp_data.conf |= DP_CONF_CABLE_TYPE_RE_TIMER << DP_CONF_CABLE_TYPE_SHIFT;
+		else if (cable_tbt_vdo & TBT_CABLE_ACTIVE_PASSIVE)
+			dp_data.conf |= DP_CONF_CABLE_TYPE_RE_DRIVER << DP_CONF_CABLE_TYPE_SHIFT;
+	} else if (PD_IDH_PTYPE(port->c_identity.id_header) == IDH_PTYPE_PCABLE) {
+		dp_data.conf |= VDO_TYPEC_CABLE_SPEED(port->c_identity.vdo[0]) <<
+				DP_CONF_SIGNALLING_SHIFT;
+	}
+
 	ret = cros_typec_retimer_set(port->retimer, port->state);
 	if (!ret)
 		ret = typec_mux_set(port->mux, &port->state);
@@ -586,8 +638,10 @@ static int cros_typec_enable_usb4(struct cros_typec_data *typec,
 	/* Cable Type */
 	if (pd_ctrl->control_flags & USB_PD_CTRL_OPTICAL_CABLE)
 		data.eudo |= EUDO_CABLE_TYPE_OPTICAL << EUDO_CABLE_TYPE_SHIFT;
-	else if (pd_ctrl->control_flags & USB_PD_CTRL_ACTIVE_CABLE)
+	else if (cros_typec_get_cable_vdo(port, USB_TYPEC_TBT_SID) & TBT_CABLE_RETIMER)
 		data.eudo |= EUDO_CABLE_TYPE_RE_TIMER << EUDO_CABLE_TYPE_SHIFT;
+	else if (pd_ctrl->control_flags & USB_PD_CTRL_ACTIVE_CABLE)
+		data.eudo |= EUDO_CABLE_TYPE_RE_DRIVER << EUDO_CABLE_TYPE_SHIFT;
 
 	data.active_link_training = !!(pd_ctrl->control_flags &
 				       USB_PD_CTRL_ACTIVE_LINK_UNIDIR);

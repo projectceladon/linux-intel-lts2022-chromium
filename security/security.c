@@ -185,11 +185,12 @@ static void __init lsm_set_blob_size(int *need, int *lbs)
 {
 	int offset;
 
-	if (*need > 0) {
-		offset = *lbs;
-		*lbs += *need;
-		*need = offset;
-	}
+	if (*need <= 0)
+		return;
+
+	offset = ALIGN(*lbs, sizeof(void *));
+	*lbs = offset + *need;
+	*need = offset;
 }
 
 static void __init lsm_set_blob_sizes(struct lsm_blob_sizes *needed)
@@ -880,6 +881,20 @@ void security_bprm_committing_creds(struct linux_binprm *bprm)
 void security_bprm_committed_creds(struct linux_binprm *bprm)
 {
 	call_void_hook(bprm_committed_creds, bprm);
+}
+
+/**
+ * security_fs_context_submount() - Initialise fc->security
+ * @fc: new filesystem context
+ * @reference: dentry reference for submount/remount
+ *
+ * Fill out the ->security field for a new fs_context.
+ *
+ * Return: Returns 0 on success or negative error code on failure.
+ */
+int security_fs_context_submount(struct fs_context *fc, struct super_block *reference)
+{
+	return call_int_hook(fs_context_submount, 0, fc, reference);
 }
 
 int security_fs_context_dup(struct fs_context *fc, struct fs_context *src_fc)
@@ -1652,6 +1667,11 @@ int security_file_open(struct file *file)
 		return ret;
 
 	return fsnotify_perm(file, MAY_OPEN);
+}
+
+int security_file_truncate(struct file *file)
+{
+	return call_int_hook(file_truncate, 0, file);
 }
 
 int security_task_alloc(struct task_struct *task, unsigned long clone_flags)

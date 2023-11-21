@@ -257,6 +257,8 @@ int regcache_sync_block(struct regmap *map, void *block,
 			unsigned long *cache_present,
 			unsigned int block_base, unsigned int start,
 			unsigned int end);
+bool regcache_reg_needs_sync(struct regmap *map, unsigned int reg,
+			     unsigned int val);
 
 static inline const void *regcache_get_val_addr(struct regmap *map,
 						const void *base,
@@ -267,7 +269,7 @@ static inline const void *regcache_get_val_addr(struct regmap *map,
 
 unsigned int regcache_get_val(struct regmap *map, const void *base,
 			      unsigned int idx);
-bool regcache_set_val(struct regmap *map, void *base, unsigned int idx,
+void regcache_set_val(struct regmap *map, void *base, unsigned int idx,
 		      unsigned int val);
 int regcache_lookup_reg(struct regmap *map, unsigned int reg);
 int regcache_sync_val(struct regmap *map, unsigned int reg, unsigned int val);

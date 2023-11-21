@@ -212,6 +212,7 @@
 
 	sound: sound {
 		mediatek,platform = <&afe>;
+		mediatek,hdmi-codec = <&anx_bridge_dp>;
 		pinctrl-names = "aud_clk_mosi_off",
 				"aud_clk_mosi_on",
 				"aud_dat_mosi_off",
@@ -265,6 +266,10 @@
 		pinctrl-24 = <&aud_gpio_tdm_off_pins>;
 		pinctrl-25 = <&aud_gpio_tdm_on_pins>;
 	};
+};
+
+&afe {
+	i2s9-share = "I2S8";
 };
 
 &dpi0 {

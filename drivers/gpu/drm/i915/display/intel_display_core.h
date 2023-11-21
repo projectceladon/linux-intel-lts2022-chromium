@@ -17,14 +17,14 @@
 #include <drm/drm_modeset_lock.h>
 
 #include "intel_cdclk.h"
-#include "intel_display.h"
+#include "intel_display_limits.h"
 #include "intel_display_power.h"
 #include "intel_dpll_mgr.h"
 #include "intel_fbc.h"
 #include "intel_global_state.h"
 #include "intel_gmbus.h"
 #include "intel_opregion.h"
-#include "intel_pm_types.h"
+#include "intel_wm_types.h"
 
 struct drm_i915_private;
 struct drm_property;
@@ -88,6 +88,11 @@ struct intel_wm_funcs {
 	void (*get_hw_state)(struct drm_i915_private *i915);
 };
 
+struct intel_audio_state {
+	struct intel_encoder *encoder;
+	u8 eld[MAX_ELD_BYTES];
+};
+
 struct intel_audio {
 	/* hda/i915 audio component */
 	struct i915_audio_component *component;
@@ -97,8 +102,8 @@ struct intel_audio {
 	int power_refcount;
 	u32 freq_cntrl;
 
-	/* Used to save the pipe-to-encoder mapping for audio */
-	struct intel_encoder *encoder_map[I915_MAX_PIPES];
+	/* current audio state for the audio component hooks */
+	struct intel_audio_state state[I915_MAX_TRANSCODERS];
 
 	/* necessary resource sharing with HDMI LPE audio driver. */
 	struct {
@@ -123,6 +128,11 @@ struct intel_dpll {
 		int nssc;
 		int ssc;
 	} ref_clks;
+
+	/*
+	 * Bitmask of PLLs using the PCH SSC, indexed using enum intel_dpll_id.
+	 */
+	u8 pch_ssc_use;
 };
 
 struct intel_frontbuffer_tracking {
@@ -173,6 +183,17 @@ struct intel_hotplug {
 	 * blocked behind the non-DP one.
 	 */
 	struct workqueue_struct *dp_wq;
+
+	/*
+	 * Flag to track if long HPDs need not to be processed
+	 *
+	 * Some panels generate long HPDs while keep connected to the port.
+	 * This can cause issues with CI tests results. In CI systems we
+	 * don't expect to disconnect the panels and could ignore the long
+	 * HPDs generated from the faulty panels. This flag can be used as
+	 * cue to ignore the long HPDs and can be set / unset using debugfs.
+	 */
+	bool ignore_long_hpd;
 };
 
 struct intel_vbt_data {
@@ -409,6 +430,10 @@ struct intel_display {
 	} hti;
 
 	struct {
+		bool false_color;
+	} ips;
+
+	struct {
 		struct i915_power_domains domains;
 
 		/* Shadow for DISPLAY_PHY_CONTROL which can't be safely read */
@@ -458,6 +483,16 @@ struct intel_display {
 		 */
 		u8 phy_failed_calibration;
 	} snps;
+
+	struct {
+		/*
+		 * Shadows for CHV DPLL_MD regs to keep the state
+		 * checker somewhat working in the presence hardware
+		 * crappiness (can't read out DPLL_MD for pipes B & C).
+		 */
+		u32 chv_dpll_md[I915_MAX_PIPES];
+		u32 bxt_phy_grc;
+	} state;
 
 	struct {
 		/* ordered wq for modesets */

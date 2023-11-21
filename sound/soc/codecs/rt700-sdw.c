@@ -292,7 +292,7 @@ static const struct regmap_config rt700_regmap = {
 	.max_register = 0x755800,
 	.reg_defaults = rt700_reg_defaults,
 	.num_reg_defaults = ARRAY_SIZE(rt700_reg_defaults),
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 	.use_single_read = true,
 	.use_single_write = true,
 	.reg_read = rt700_sdw_read,
@@ -452,9 +452,7 @@ static int rt700_sdw_probe(struct sdw_slave *slave,
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	rt700_init(&slave->dev, sdw_regmap, regmap, slave);
-
-	return 0;
+	return rt700_init(&slave->dev, sdw_regmap, regmap, slave);
 }
 
 static int rt700_sdw_remove(struct sdw_slave *slave)
@@ -466,8 +464,7 @@ static int rt700_sdw_remove(struct sdw_slave *slave)
 		cancel_delayed_work_sync(&rt700->jack_btn_check_work);
 	}
 
-	if (rt700->first_hw_init)
-		pm_runtime_disable(&slave->dev);
+	pm_runtime_disable(&slave->dev);
 
 	return 0;
 }

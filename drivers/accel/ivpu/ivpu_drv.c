@@ -361,7 +361,6 @@ int ivpu_shutdown(struct ivpu_device *vdev)
 
 static const struct file_operations ivpu_fops = {
 	.owner		= THIS_MODULE,
-	.mmap           = drm_gem_mmap,
 	DRM_ACCEL_FOPS,
 };
 
@@ -437,6 +436,10 @@ static int ivpu_pci_init(struct ivpu_device *vdev)
 
 	/* Clear any pending errors */
 	pcie_capability_clear_word(pdev, PCI_EXP_DEVSTA, 0x3f);
+
+	/* VPU MTL does not require PCI spec 10m D3hot delay */
+	if (ivpu_is_mtl(vdev))
+		pdev->d3hot_delay = 0;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {

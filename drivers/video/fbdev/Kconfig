@@ -3,16 +3,13 @@
 # fbdev configuration
 #
 
-config FB_CMDLINE
-	bool
-
 config FB_NOTIFY
 	bool
 
 menuconfig FB
 	tristate "Support for frame buffer devices"
-	select FB_CMDLINE
 	select FB_NOTIFY
+	select VIDEO_CMDLINE
 	help
 	  The frame buffer device provides an abstraction for the graphics
 	  hardware. It represents the frame buffer of some video hardware and
@@ -2050,7 +2047,7 @@ config FB_COBALT
 
 config FB_SH7760
 	bool "SH7760/SH7763/SH7720/SH7721 LCDC support"
-	depends on FB && (CPU_SUBTYPE_SH7760 || CPU_SUBTYPE_SH7763 \
+	depends on FB=y && (CPU_SUBTYPE_SH7760 || CPU_SUBTYPE_SH7763 \
 		|| CPU_SUBTYPE_SH7720 || CPU_SUBTYPE_SH7721)
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
