@@ -47,6 +47,11 @@ struct intel_color_funcs {
 	 */
 	void (*color_commit_arm)(const struct intel_crtc_state *crtc_state);
 	/*
+	 * Perform any extra tasks needed after all the
+	 * double buffered registers have been latched.
+	 */
+	void (*color_post_update)(const struct intel_crtc_state *crtc_state);
+	/*
 	 * Load LUTs (and other single buffered color management
 	 * registers). Will (hopefully) be called during the vblank
 	 * following the latching of any double buffered registers
@@ -257,7 +262,7 @@ static bool ilk_limited_range(const struct intel_crtc_state *crtc_state)
 	if (DISPLAY_VER(i915) >= 11)
 		return false;
 
-	/* pre-hsw have PIPECONF_COLOR_RANGE_SELECT */
+	/* pre-hsw have TRANSCONF_COLOR_RANGE_SELECT */
 	if (DISPLAY_VER(i915) < 7 || IS_IVYBRIDGE(i915))
 		return false;
 
@@ -614,6 +619,14 @@ static void ilk_lut_12p4_pack(struct drm_color_lut *entry, u32 ldw, u32 udw)
 
 static void icl_color_commit_noarm(const struct intel_crtc_state *crtc_state)
 {
+	/*
+	 * Despite Wa_1406463849, ICL no longer suffers from the SKL
+	 * DC5/PSR CSC black screen issue (see skl_color_commit_noarm()).
+	 * Possibly due to the extra sticky CSC arming
+	 * (see icl_color_post_update()).
+	 *
+	 * On TGL+ all CSC arming issues have been properly fixed.
+	 */
 	icl_load_csc_matrix(crtc_state);
 }
 
@@ -640,7 +653,7 @@ static void ilk_color_commit_noarm(const struct intel_crtc_state *crtc_state)
 
 static void i9xx_color_commit_arm(const struct intel_crtc_state *crtc_state)
 {
-	/* update PIPECONF GAMMA_MODE */
+	/* update TRANSCONF GAMMA_MODE */
 	i9xx_set_pipeconf(crtc_state);
 }
 
@@ -649,7 +662,7 @@ static void ilk_color_commit_arm(const struct intel_crtc_state *crtc_state)
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
 
-	/* update PIPECONF GAMMA_MODE */
+	/* update TRANSCONF GAMMA_MODE */
 	ilk_set_pipeconf(crtc_state);
 
 	intel_de_write_fw(i915, PIPE_CSC_MODE(crtc->pipe),
@@ -694,6 +707,47 @@ static void skl_color_commit_arm(const struct intel_crtc_state *crtc_state)
 
 	intel_de_write_fw(i915, PIPE_CSC_MODE(crtc->pipe),
 			  crtc_state->csc_mode);
+}
+
+static void icl_color_commit_arm(const struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
+	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	enum pipe pipe = crtc->pipe;
+
+	/*
+	 * We don't (yet) allow userspace to control the pipe background color,
+	 * so force it to black.
+	 */
+	intel_de_write(i915, SKL_BOTTOM_COLOR(pipe), 0);
+
+	intel_de_write(i915, GAMMA_MODE(crtc->pipe),
+		       crtc_state->gamma_mode);
+
+	intel_de_write_fw(i915, PIPE_CSC_MODE(crtc->pipe),
+			  crtc_state->csc_mode);
+}
+
+static void icl_color_post_update(const struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
+	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+
+	/*
+	 * Despite Wa_1406463849, ICL CSC is no longer disarmed by
+	 * coeff/offset register *writes*. Instead, once CSC_MODE
+	 * is armed it stays armed, even after it has been latched.
+	 * Afterwards the coeff/offset registers become effectively
+	 * self-arming. That self-arming must be disabled before the
+	 * next icl_color_commit_noarm() tries to write the next set
+	 * of coeff/offset registers. Fortunately register *reads*
+	 * do still disarm the CSC. Naturally this must not be done
+	 * until the previously written CSC registers have actually
+	 * been latched.
+	 *
+	 * TGL+ no longer need this workaround.
+	 */
+	intel_de_read_fw(i915, PIPE_CSC_PREOFF_HI(crtc->pipe));
 }
 
 static struct drm_property_blob *
@@ -855,10 +909,21 @@ static void i965_load_luts(const struct intel_crtc_state *crtc_state)
 	}
 }
 
-static void ilk_load_lut_8(struct intel_crtc *crtc,
+static void ilk_lut_write(const struct intel_crtc_state *crtc_state,
+			  i915_reg_t reg, u32 val)
+{
+	struct drm_i915_private *i915 = to_i915(crtc_state->uapi.crtc->dev);
+
+	if (crtc_state->dsb)
+		intel_dsb_reg_write(crtc_state->dsb, reg, val);
+	else
+		intel_de_write_fw(i915, reg, val);
+}
+
+static void ilk_load_lut_8(const struct intel_crtc_state *crtc_state,
 			   const struct drm_property_blob *blob)
 {
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_color_lut *lut;
 	enum pipe pipe = crtc->pipe;
 	int i;
@@ -869,36 +934,35 @@ static void ilk_load_lut_8(struct intel_crtc *crtc,
 	lut = blob->data;
 
 	for (i = 0; i < 256; i++)
-		intel_de_write_fw(i915, LGC_PALETTE(pipe, i),
-				  i9xx_lut_8(&lut[i]));
+		ilk_lut_write(crtc_state, LGC_PALETTE(pipe, i),
+			      i9xx_lut_8(&lut[i]));
 }
 
-static void ilk_load_lut_10(struct intel_crtc *crtc,
+static void ilk_load_lut_10(const struct intel_crtc_state *crtc_state,
 			    const struct drm_property_blob *blob)
 {
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_color_lut *lut = blob->data;
 	int i, lut_size = drm_color_lut_size(blob);
 	enum pipe pipe = crtc->pipe;
 
 	for (i = 0; i < lut_size; i++)
-		intel_de_write_fw(i915, PREC_PALETTE(pipe, i),
-				  ilk_lut_10(&lut[i]));
+		ilk_lut_write(crtc_state, PREC_PALETTE(pipe, i),
+			      ilk_lut_10(&lut[i]));
 }
 
 static void ilk_load_luts(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_property_blob *post_csc_lut = crtc_state->post_csc_lut;
 	const struct drm_property_blob *pre_csc_lut = crtc_state->pre_csc_lut;
 	const struct drm_property_blob *blob = post_csc_lut ?: pre_csc_lut;
 
 	switch (crtc_state->gamma_mode) {
 	case GAMMA_MODE_MODE_8BIT:
-		ilk_load_lut_8(crtc, blob);
+		ilk_load_lut_8(crtc_state, blob);
 		break;
 	case GAMMA_MODE_MODE_10BIT:
-		ilk_load_lut_10(crtc, blob);
+		ilk_load_lut_10(crtc_state, blob);
 		break;
 	default:
 		MISSING_CASE(crtc_state->gamma_mode);
@@ -919,50 +983,56 @@ static int ivb_lut_10_size(u32 prec_index)
  * "Restriction : Index auto increment mode is not
  *  supported and must not be enabled."
  */
-static void ivb_load_lut_10(struct intel_crtc *crtc,
+static void ivb_load_lut_10(const struct intel_crtc_state *crtc_state,
 			    const struct drm_property_blob *blob,
 			    u32 prec_index)
 {
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	const struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_color_lut *lut = blob->data;
 	int i, lut_size = drm_color_lut_size(blob);
 	enum pipe pipe = crtc->pipe;
 
 	for (i = 0; i < lut_size; i++) {
-		intel_de_write_fw(i915, PREC_PAL_INDEX(pipe), prec_index++);
-		intel_de_write_fw(i915, PREC_PAL_DATA(pipe),
-				  ilk_lut_10(&lut[i]));
+		ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+			      prec_index + i);
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_10(&lut[i]));
 	}
 
 	/*
 	 * Reset the index, otherwise it prevents the legacy palette to be
 	 * written properly.
 	 */
-	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe), 0);
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_INDEX_VALUE(0));
 }
 
 /* On BDW+ the index auto increment mode actually works */
-static void bdw_load_lut_10(struct intel_crtc *crtc,
+static void bdw_load_lut_10(const struct intel_crtc_state *crtc_state,
 			    const struct drm_property_blob *blob,
 			    u32 prec_index)
 {
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_color_lut *lut = blob->data;
 	int i, lut_size = drm_color_lut_size(blob);
 	enum pipe pipe = crtc->pipe;
 
-	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe),
-			  prec_index | PAL_PREC_AUTO_INCREMENT);
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      prec_index);
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_AUTO_INCREMENT |
+		      prec_index);
 
 	for (i = 0; i < lut_size; i++)
-		intel_de_write_fw(i915, PREC_PAL_DATA(pipe),
-				  ilk_lut_10(&lut[i]));
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_10(&lut[i]));
 
 	/*
 	 * Reset the index, otherwise it prevents the legacy palette to be
 	 * written properly.
 	 */
-	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe), 0);
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_INDEX_VALUE(0));
 }
 
 static void ivb_load_lut_ext_max(const struct intel_crtc_state *crtc_state)
@@ -971,9 +1041,9 @@ static void ivb_load_lut_ext_max(const struct intel_crtc_state *crtc_state)
 	enum pipe pipe = crtc->pipe;
 
 	/* Program the max register to clamp values > 1.0. */
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 0), 1 << 16);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 1), 1 << 16);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 2), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 0), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 1), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT_GC_MAX(pipe, 2), 1 << 16);
 }
 
 static void glk_load_lut_ext2_max(const struct intel_crtc_state *crtc_state)
@@ -982,31 +1052,30 @@ static void glk_load_lut_ext2_max(const struct intel_crtc_state *crtc_state)
 	enum pipe pipe = crtc->pipe;
 
 	/* Program the max register to clamp values > 1.0. */
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 0), 1 << 16);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 1), 1 << 16);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 2), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 0), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 1), 1 << 16);
+	ilk_lut_write(crtc_state, PREC_PAL_EXT2_GC_MAX(pipe, 2), 1 << 16);
 }
 
 static void ivb_load_luts(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_property_blob *post_csc_lut = crtc_state->post_csc_lut;
 	const struct drm_property_blob *pre_csc_lut = crtc_state->pre_csc_lut;
 	const struct drm_property_blob *blob = post_csc_lut ?: pre_csc_lut;
 
 	switch (crtc_state->gamma_mode) {
 	case GAMMA_MODE_MODE_8BIT:
-		ilk_load_lut_8(crtc, blob);
+		ilk_load_lut_8(crtc_state, blob);
 		break;
 	case GAMMA_MODE_MODE_SPLIT:
-		ivb_load_lut_10(crtc, pre_csc_lut, PAL_PREC_SPLIT_MODE |
+		ivb_load_lut_10(crtc_state, pre_csc_lut, PAL_PREC_SPLIT_MODE |
 				PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
-		ivb_load_lut_10(crtc, post_csc_lut, PAL_PREC_SPLIT_MODE |
+		ivb_load_lut_10(crtc_state, post_csc_lut, PAL_PREC_SPLIT_MODE |
 				PAL_PREC_INDEX_VALUE(512));
 		break;
 	case GAMMA_MODE_MODE_10BIT:
-		ivb_load_lut_10(crtc, blob,
+		ivb_load_lut_10(crtc_state, blob,
 				PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
 		break;
@@ -1018,25 +1087,23 @@ static void ivb_load_luts(const struct intel_crtc_state *crtc_state)
 
 static void bdw_load_luts(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 	const struct drm_property_blob *post_csc_lut = crtc_state->post_csc_lut;
 	const struct drm_property_blob *pre_csc_lut = crtc_state->pre_csc_lut;
 	const struct drm_property_blob *blob = post_csc_lut ?: pre_csc_lut;
 
 	switch (crtc_state->gamma_mode) {
 	case GAMMA_MODE_MODE_8BIT:
-		ilk_load_lut_8(crtc, blob);
+		ilk_load_lut_8(crtc_state, blob);
 		break;
 	case GAMMA_MODE_MODE_SPLIT:
-		bdw_load_lut_10(crtc, pre_csc_lut, PAL_PREC_SPLIT_MODE |
+		bdw_load_lut_10(crtc_state, pre_csc_lut, PAL_PREC_SPLIT_MODE |
 				PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
-		bdw_load_lut_10(crtc, post_csc_lut, PAL_PREC_SPLIT_MODE |
+		bdw_load_lut_10(crtc_state, post_csc_lut, PAL_PREC_SPLIT_MODE |
 				PAL_PREC_INDEX_VALUE(512));
 		break;
 	case GAMMA_MODE_MODE_10BIT:
-
-		bdw_load_lut_10(crtc, blob,
+		bdw_load_lut_10(crtc_state, blob,
 				PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
 		break;
@@ -1068,9 +1135,11 @@ static void glk_load_degamma_lut(const struct intel_crtc_state *crtc_state,
 	 * ignore the index bits, so we need to reset it to index 0
 	 * separately.
 	 */
-	intel_de_write_fw(i915, PRE_CSC_GAMC_INDEX(pipe), 0);
-	intel_de_write_fw(i915, PRE_CSC_GAMC_INDEX(pipe),
-			  PRE_CSC_GAMC_AUTO_INCREMENT);
+	ilk_lut_write(crtc_state, PRE_CSC_GAMC_INDEX(pipe),
+		      PRE_CSC_GAMC_INDEX_VALUE(0));
+	ilk_lut_write(crtc_state, PRE_CSC_GAMC_INDEX(pipe),
+		      PRE_CSC_GAMC_AUTO_INCREMENT |
+		      PRE_CSC_GAMC_INDEX_VALUE(0));
 
 	for (i = 0; i < lut_size; i++) {
 		/*
@@ -1086,32 +1155,31 @@ static void glk_load_degamma_lut(const struct intel_crtc_state *crtc_state,
 		 * ToDo: Extend to max 7.0. Enable 32 bit input value
 		 * as compared to just 16 to achieve this.
 		 */
-		intel_de_write_fw(i915, PRE_CSC_GAMC_DATA(pipe),
-				  lut[i].green);
+		ilk_lut_write(crtc_state, PRE_CSC_GAMC_DATA(pipe),
+			      lut[i].green);
 	}
 
 	/* Clamp values > 1.0. */
 	while (i++ < glk_degamma_lut_size(i915))
-		intel_de_write_fw(i915, PRE_CSC_GAMC_DATA(pipe), 1 << 16);
+		ilk_lut_write(crtc_state, PRE_CSC_GAMC_DATA(pipe), 1 << 16);
 
-	intel_de_write_fw(i915, PRE_CSC_GAMC_INDEX(pipe), 0);
+	ilk_lut_write(crtc_state, PRE_CSC_GAMC_INDEX(pipe), 0);
 }
 
 static void glk_load_luts(const struct intel_crtc_state *crtc_state)
 {
 	const struct drm_property_blob *pre_csc_lut = crtc_state->pre_csc_lut;
 	const struct drm_property_blob *post_csc_lut = crtc_state->post_csc_lut;
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 
 	if (pre_csc_lut)
 		glk_load_degamma_lut(crtc_state, pre_csc_lut);
 
 	switch (crtc_state->gamma_mode) {
 	case GAMMA_MODE_MODE_8BIT:
-		ilk_load_lut_8(crtc, post_csc_lut);
+		ilk_load_lut_8(crtc_state, post_csc_lut);
 		break;
 	case GAMMA_MODE_MODE_10BIT:
-		bdw_load_lut_10(crtc, post_csc_lut, PAL_PREC_INDEX_VALUE(0));
+		bdw_load_lut_10(crtc_state, post_csc_lut, PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
 		glk_load_lut_ext2_max(crtc_state);
 		break;
@@ -1129,9 +1197,9 @@ ivb_load_lut_max(const struct intel_crtc_state *crtc_state,
 	enum pipe pipe = crtc->pipe;
 
 	/* FIXME LUT entries are 16 bit only, so we can prog 0xFFFF max */
-	intel_dsb_reg_write(crtc_state, PREC_PAL_GC_MAX(pipe, 0), color->red);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_GC_MAX(pipe, 1), color->green);
-	intel_dsb_reg_write(crtc_state, PREC_PAL_GC_MAX(pipe, 2), color->blue);
+	ilk_lut_write(crtc_state, PREC_PAL_GC_MAX(pipe, 0), color->red);
+	ilk_lut_write(crtc_state, PREC_PAL_GC_MAX(pipe, 1), color->green);
+	ilk_lut_write(crtc_state, PREC_PAL_GC_MAX(pipe, 2), color->blue);
 }
 
 static void
@@ -1150,17 +1218,23 @@ icl_program_gamma_superfine_segment(const struct intel_crtc_state *crtc_state)
 	 * 9 entries, corresponding to values 0, 1/(8 * 128 * 256),
 	 * 2/(8 * 128 * 256) ... 8/(8 * 128 * 256).
 	 */
-	intel_dsb_reg_write(crtc_state, PREC_PAL_MULTI_SEG_INDEX(pipe),
-			    PAL_PREC_AUTO_INCREMENT);
+	ilk_lut_write(crtc_state, PREC_PAL_MULTI_SEG_INDEX(pipe),
+		      PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
+	ilk_lut_write(crtc_state, PREC_PAL_MULTI_SEG_INDEX(pipe),
+		      PAL_PREC_AUTO_INCREMENT |
+		      PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
 
 	for (i = 0; i < 9; i++) {
 		const struct drm_color_lut *entry = &lut[i];
 
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_MULTI_SEG_DATA(pipe),
-					    ilk_lut_12p4_ldw(entry));
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_MULTI_SEG_DATA(pipe),
-					    ilk_lut_12p4_udw(entry));
+		ilk_lut_write(crtc_state, PREC_PAL_MULTI_SEG_DATA(pipe),
+			      ilk_lut_12p4_ldw(entry));
+		ilk_lut_write(crtc_state, PREC_PAL_MULTI_SEG_DATA(pipe),
+			      ilk_lut_12p4_udw(entry));
 	}
+
+	ilk_lut_write(crtc_state, PREC_PAL_MULTI_SEG_INDEX(pipe),
+		      PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
 }
 
 static void
@@ -1183,14 +1257,19 @@ icl_program_gamma_multi_segment(const struct intel_crtc_state *crtc_state)
 	 * PAL_PREC_INDEX[0] and PAL_PREC_INDEX[1] map to seg2[1],
 	 * seg2[0] being unused by the hardware.
 	 */
-	intel_dsb_reg_write(crtc_state, PREC_PAL_INDEX(pipe),
-			    PAL_PREC_AUTO_INCREMENT);
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_INDEX_VALUE(0));
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_AUTO_INCREMENT |
+		      PAL_PREC_INDEX_VALUE(0));
+
 	for (i = 1; i < 257; i++) {
 		entry = &lut[i * 8];
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_DATA(pipe),
-					    ilk_lut_12p4_ldw(entry));
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_DATA(pipe),
-					    ilk_lut_12p4_udw(entry));
+
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_12p4_ldw(entry));
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_12p4_udw(entry));
 	}
 
 	/*
@@ -1207,11 +1286,15 @@ icl_program_gamma_multi_segment(const struct intel_crtc_state *crtc_state)
 	 */
 	for (i = 0; i < 256; i++) {
 		entry = &lut[i * 8 * 128];
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_DATA(pipe),
-					    ilk_lut_12p4_ldw(entry));
-		intel_dsb_indexed_reg_write(crtc_state, PREC_PAL_DATA(pipe),
-					    ilk_lut_12p4_udw(entry));
+
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_12p4_ldw(entry));
+		ilk_lut_write(crtc_state, PREC_PAL_DATA(pipe),
+			      ilk_lut_12p4_udw(entry));
 	}
+
+	ilk_lut_write(crtc_state, PREC_PAL_INDEX(pipe),
+		      PAL_PREC_INDEX_VALUE(0));
 
 	/* The last entry in the LUT is to be programmed in GCMAX */
 	entry = &lut[256 * 8 * 128];
@@ -1222,23 +1305,22 @@ static void icl_load_luts(const struct intel_crtc_state *crtc_state)
 {
 	const struct drm_property_blob *pre_csc_lut = crtc_state->pre_csc_lut;
 	const struct drm_property_blob *post_csc_lut = crtc_state->post_csc_lut;
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
 
 	if (pre_csc_lut)
 		glk_load_degamma_lut(crtc_state, pre_csc_lut);
 
 	switch (crtc_state->gamma_mode & GAMMA_MODE_MODE_MASK) {
 	case GAMMA_MODE_MODE_8BIT:
-		ilk_load_lut_8(crtc, post_csc_lut);
+		ilk_load_lut_8(crtc_state, post_csc_lut);
 		break;
-	case GAMMA_MODE_MODE_12BIT_MULTI_SEGMENTED:
+	case GAMMA_MODE_MODE_12BIT_MULTI_SEG:
 		icl_program_gamma_superfine_segment(crtc_state);
 		icl_program_gamma_multi_segment(crtc_state);
 		ivb_load_lut_ext_max(crtc_state);
 		glk_load_lut_ext2_max(crtc_state);
 		break;
 	case GAMMA_MODE_MODE_10BIT:
-		bdw_load_lut_10(crtc, post_csc_lut, PAL_PREC_INDEX_VALUE(0));
+		bdw_load_lut_10(crtc_state, post_csc_lut, PAL_PREC_INDEX_VALUE(0));
 		ivb_load_lut_ext_max(crtc_state);
 		glk_load_lut_ext2_max(crtc_state);
 		break;
@@ -1247,7 +1329,11 @@ static void icl_load_luts(const struct intel_crtc_state *crtc_state)
 		break;
 	}
 
-	intel_dsb_commit(crtc_state);
+	if (crtc_state->dsb) {
+		intel_dsb_finish(crtc_state->dsb);
+		intel_dsb_commit(crtc_state->dsb, false);
+		intel_dsb_wait(crtc_state->dsb);
+	}
 }
 
 static u32 chv_cgm_degamma_ldw(const struct drm_color_lut *color)
@@ -1363,6 +1449,36 @@ void intel_color_commit_arm(const struct intel_crtc_state *crtc_state)
 	i915->display.funcs.color->color_commit_arm(crtc_state);
 }
 
+void intel_color_post_update(const struct intel_crtc_state *crtc_state)
+{
+	struct drm_i915_private *i915 = to_i915(crtc_state->uapi.crtc->dev);
+
+	if (i915->display.funcs.color->color_post_update)
+		i915->display.funcs.color->color_post_update(crtc_state);
+}
+
+void intel_color_prepare_commit(struct intel_crtc_state *crtc_state)
+{
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
+
+	/* FIXME DSB has issues loading LUTs, disable it for now */
+	return;
+
+	if (!crtc_state->pre_csc_lut && !crtc_state->post_csc_lut)
+		return;
+
+	crtc_state->dsb = intel_dsb_prepare(crtc, 1024);
+}
+
+void intel_color_cleanup_commit(struct intel_crtc_state *crtc_state)
+{
+	if (!crtc_state->dsb)
+		return;
+
+	intel_dsb_cleanup(crtc_state->dsb);
+	crtc_state->dsb = NULL;
+}
+
 static bool intel_can_preload_luts(const struct intel_crtc_state *new_crtc_state)
 {
 	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->uapi.crtc);
@@ -1471,6 +1587,8 @@ intel_color_add_affected_planes(struct intel_crtc_state *new_crtc_state)
 			return PTR_ERR(plane_state);
 
 		new_crtc_state->update_planes |= BIT(plane->id);
+		new_crtc_state->async_flip_planes = 0;
+		new_crtc_state->do_async_flip = false;
 
 		/* plane control register changes blocked by CxSR */
 		if (HAS_GMCH(i915))
@@ -2110,7 +2228,7 @@ static u32 icl_gamma_mode(const struct intel_crtc_state *crtc_state)
 	else if (DISPLAY_VER(i915) >= 13)
 		gamma_mode |= GAMMA_MODE_MODE_10BIT;
 	else
-		gamma_mode |= GAMMA_MODE_MODE_12BIT_MULTI_SEGMENTED;
+		gamma_mode |= GAMMA_MODE_MODE_12BIT_MULTI_SEG;
 
 	return gamma_mode;
 }
@@ -2302,7 +2420,7 @@ static int icl_post_csc_lut_precision(const struct intel_crtc_state *crtc_state)
 		return 8;
 	case GAMMA_MODE_MODE_10BIT:
 		return 10;
-	case GAMMA_MODE_MODE_12BIT_MULTI_SEGMENTED:
+	case GAMMA_MODE_MODE_12BIT_MULTI_SEG:
 		return 16;
 	default:
 		MISSING_CASE(crtc_state->gamma_mode);
@@ -2474,7 +2592,7 @@ static bool icl_lut_equal(const struct intel_crtc_state *crtc_state,
 
 	/* hw readout broken except for the super fine segment :( */
 	if ((crtc_state->gamma_mode & GAMMA_MODE_MODE_MASK) ==
-	    GAMMA_MODE_MODE_12BIT_MULTI_SEGMENTED)
+	    GAMMA_MODE_MODE_12BIT_MULTI_SEG)
 		check_size = 9;
 
 	return intel_lut_equal(blob1, blob2, check_size,
@@ -2775,7 +2893,8 @@ static struct drm_property_blob *ivb_read_lut_10(struct intel_crtc *crtc,
 		ilk_lut_10_pack(&lut[i], val);
 	}
 
-	intel_de_write_fw(dev_priv, PREC_PAL_INDEX(pipe), 0);
+	intel_de_write_fw(dev_priv, PREC_PAL_INDEX(pipe),
+			  PAL_PREC_INDEX_VALUE(0));
 
 	return blob;
 }
@@ -2830,7 +2949,10 @@ static struct drm_property_blob *bdw_read_lut_10(struct intel_crtc *crtc,
 	lut = blob->data;
 
 	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe),
-			  prec_index | PAL_PREC_AUTO_INCREMENT);
+			  prec_index);
+	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe),
+			  PAL_PREC_AUTO_INCREMENT |
+			  prec_index);
 
 	for (i = 0; i < lut_size; i++) {
 		u32 val = intel_de_read_fw(i915, PREC_PAL_DATA(pipe));
@@ -2838,7 +2960,8 @@ static struct drm_property_blob *bdw_read_lut_10(struct intel_crtc *crtc,
 		ilk_lut_10_pack(&lut[i], val);
 	}
 
-	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe), 0);
+	intel_de_write_fw(i915, PREC_PAL_INDEX(pipe),
+			  PAL_PREC_INDEX_VALUE(0));
 
 	return blob;
 }
@@ -2895,9 +3018,11 @@ static struct drm_property_blob *glk_read_degamma_lut(struct intel_crtc *crtc)
 	 * ignore the index bits, so we need to reset it to index 0
 	 * separately.
 	 */
-	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe), 0);
 	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe),
-			  PRE_CSC_GAMC_AUTO_INCREMENT);
+			  PRE_CSC_GAMC_INDEX_VALUE(0));
+	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe),
+			  PRE_CSC_GAMC_AUTO_INCREMENT |
+			  PRE_CSC_GAMC_INDEX_VALUE(0));
 
 	for (i = 0; i < lut_size; i++) {
 		u32 val = intel_de_read_fw(dev_priv, PRE_CSC_GAMC_DATA(pipe));
@@ -2907,7 +3032,8 @@ static struct drm_property_blob *glk_read_degamma_lut(struct intel_crtc *crtc)
 		lut[i].blue = val;
 	}
 
-	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe), 0);
+	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe),
+			  PRE_CSC_GAMC_INDEX_VALUE(0));
 
 	return blob;
 }
@@ -2935,25 +3061,6 @@ static void glk_read_luts(struct intel_crtc_state *crtc_state)
 	}
 }
 
-static void icl_color_commit_arm(const struct intel_crtc_state *crtc_state)
-{
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->uapi.crtc);
-	struct drm_i915_private *i915 = to_i915(crtc->base.dev);
-	enum pipe pipe = crtc->pipe;
-
-	/*
-	 * We don't (yet) allow userspace to control the pipe background color,
-	 * so force it to black.
-	 */
-	intel_de_write(i915, SKL_BOTTOM_COLOR(pipe), 0);
-
-	intel_de_write(i915, GAMMA_MODE(crtc->pipe),
-		       crtc_state->gamma_mode);
-
-	intel_de_write_fw(i915, PIPE_CSC_MODE(crtc->pipe),
-			  crtc_state->csc_mode);
-}
-
 static struct drm_property_blob *
 icl_read_lut_multi_segment(struct intel_crtc *crtc)
 {
@@ -2972,7 +3079,10 @@ icl_read_lut_multi_segment(struct intel_crtc *crtc)
 	lut = blob->data;
 
 	intel_de_write_fw(i915, PREC_PAL_MULTI_SEG_INDEX(pipe),
-			  PAL_PREC_AUTO_INCREMENT);
+			  PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
+	intel_de_write_fw(i915, PREC_PAL_MULTI_SEG_INDEX(pipe),
+			  PAL_PREC_MULTI_SEG_AUTO_INCREMENT |
+			  PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
 
 	for (i = 0; i < 9; i++) {
 		u32 ldw = intel_de_read_fw(i915, PREC_PAL_MULTI_SEG_DATA(pipe));
@@ -2981,7 +3091,8 @@ icl_read_lut_multi_segment(struct intel_crtc *crtc)
 		ilk_lut_12p4_pack(&lut[i], ldw, udw);
 	}
 
-	intel_de_write_fw(i915, PREC_PAL_MULTI_SEG_INDEX(pipe), 0);
+	intel_de_write_fw(i915, PREC_PAL_MULTI_SEG_INDEX(pipe),
+			  PAL_PREC_MULTI_SEG_INDEX_VALUE(0));
 
 	/*
 	 * FIXME readouts from PAL_PREC_DATA register aren't giving
@@ -3009,7 +3120,7 @@ static void icl_read_luts(struct intel_crtc_state *crtc_state)
 	case GAMMA_MODE_MODE_10BIT:
 		crtc_state->post_csc_lut = bdw_read_lut_10(crtc, PAL_PREC_INDEX_VALUE(0));
 		break;
-	case GAMMA_MODE_MODE_12BIT_MULTI_SEGMENTED:
+	case GAMMA_MODE_MODE_12BIT_MULTI_SEG:
 		crtc_state->post_csc_lut = icl_read_lut_multi_segment(crtc);
 		break;
 	default:
@@ -3042,10 +3153,20 @@ static const struct intel_color_funcs i9xx_color_funcs = {
 	.lut_equal = i9xx_lut_equal,
 };
 
+static const struct intel_color_funcs tgl_color_funcs = {
+	.color_check = icl_color_check,
+	.color_commit_noarm = icl_color_commit_noarm,
+	.color_commit_arm = icl_color_commit_arm,
+	.load_luts = icl_load_luts,
+	.read_luts = icl_read_luts,
+	.lut_equal = icl_lut_equal,
+};
+
 static const struct intel_color_funcs icl_color_funcs = {
 	.color_check = icl_color_check,
 	.color_commit_noarm = icl_color_commit_noarm,
 	.color_commit_arm = icl_color_commit_arm,
+	.color_post_update = icl_color_post_update,
 	.load_luts = icl_load_luts,
 	.read_luts = icl_read_luts,
 	.lut_equal = icl_lut_equal,
@@ -3158,7 +3279,9 @@ void intel_color_init_hooks(struct drm_i915_private *i915)
 		else
 			i915->display.funcs.color = &i9xx_color_funcs;
 	} else {
-		if (DISPLAY_VER(i915) >= 11)
+		if (DISPLAY_VER(i915) >= 12)
+			i915->display.funcs.color = &tgl_color_funcs;
+		else if (DISPLAY_VER(i915) == 11)
 			i915->display.funcs.color = &icl_color_funcs;
 		else if (DISPLAY_VER(i915) == 10)
 			i915->display.funcs.color = &glk_color_funcs;

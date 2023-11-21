@@ -743,7 +743,7 @@ struct regmap_config cs35l41_regmap_i2c = {
 	.volatile_reg = cs35l41_volatile_reg,
 	.readable_reg = cs35l41_readable_reg,
 	.precious_reg = cs35l41_precious_reg,
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 };
 EXPORT_SYMBOL_GPL(cs35l41_regmap_i2c);
 
@@ -760,7 +760,7 @@ struct regmap_config cs35l41_regmap_spi = {
 	.volatile_reg = cs35l41_volatile_reg,
 	.readable_reg = cs35l41_readable_reg,
 	.precious_reg = cs35l41_precious_reg,
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 };
 EXPORT_SYMBOL_GPL(cs35l41_regmap_spi);
 
@@ -1224,7 +1224,7 @@ int cs35l41_global_enable(struct regmap *regmap, enum cs35l41_boost_type b_type,
 		cs35l41_mdsync_down_seq[2].def = pwr_ctrl1;
 		ret = regmap_multi_reg_write(regmap, cs35l41_mdsync_down_seq,
 					     ARRAY_SIZE(cs35l41_mdsync_down_seq));
-		if (!enable)
+		if (ret || !enable)
 			break;
 
 		if (!pll_lock)

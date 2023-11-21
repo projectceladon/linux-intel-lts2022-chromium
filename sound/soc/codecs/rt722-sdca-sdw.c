@@ -139,7 +139,7 @@ static const struct regmap_config rt722_sdca_regmap = {
 	.max_register = 0x44ffffff,
 	.reg_defaults = rt722_sdca_reg_defaults,
 	.num_reg_defaults = ARRAY_SIZE(rt722_sdca_reg_defaults),
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 	.use_single_read = true,
 	.use_single_write = true,
 };
@@ -153,7 +153,7 @@ static const struct regmap_config rt722_sdca_mbq_regmap = {
 	.max_register = 0x41000312,
 	.reg_defaults = rt722_sdca_mbq_defaults,
 	.num_reg_defaults = ARRAY_SIZE(rt722_sdca_mbq_defaults),
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 	.use_single_read = true,
 	.use_single_write = true,
 };
@@ -175,7 +175,7 @@ static int rt722_sdca_update_status(struct sdw_slave *slave,
 		 * This also could sync with the cache value as the rt722_sdca_jack_init set.
 		 */
 			sdw_write_no_pm(rt722->slave, SDW_SCP_SDCA_INTMASK1,
-				SDW_SCP_SDCA_INTMASK_SDCA_0 | SDW_SCP_SDCA_INTMASK_SDCA_6);
+				SDW_SCP_SDCA_INTMASK_SDCA_6);
 			sdw_write_no_pm(rt722->slave, SDW_SCP_SDCA_INTMASK2,
 				SDW_SCP_SDCA_INTMASK_SDCA_8);
 		}
@@ -463,8 +463,16 @@ static int __maybe_unused rt722_sdca_dev_resume(struct device *dev)
 	if (!rt722->first_hw_init)
 		return 0;
 
-	if (!slave->unattach_request)
+	if (!slave->unattach_request) {
+		if (rt722->disable_irq == true) {
+			mutex_lock(&rt722->disable_irq_lock);
+			sdw_write_no_pm(slave, SDW_SCP_SDCA_INTMASK1, SDW_SCP_SDCA_INTMASK_SDCA_6);
+			sdw_write_no_pm(slave, SDW_SCP_SDCA_INTMASK2, SDW_SCP_SDCA_INTMASK_SDCA_8);
+			rt722->disable_irq = false;
+			mutex_unlock(&rt722->disable_irq_lock);
+		}
 		goto regmap_sync;
+	}
 
 	time = wait_for_completion_timeout(&slave->initialization_complete,
 				msecs_to_jiffies(RT722_PROBE_TIMEOUT));

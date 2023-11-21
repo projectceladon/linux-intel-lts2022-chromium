@@ -153,6 +153,18 @@ static enum drm_lspcon_mode lspcon_get_current_mode(struct intel_lspcon *lspcon)
 	return current_mode;
 }
 
+static int lspcon_get_mode_settle_timeout(struct intel_lspcon *lspcon)
+{
+	/*
+	 * On some CometLake-based device designs the Parade PS175 takes more
+	 * than 400ms to settle in PCON mode. 100 reboot trials on one device
+	 * resulted in a median settle time of 440ms and a maximum of 444ms.
+	 * Even after increasing the timeout to 500ms, 2% of devices still had
+	 * this error. So this sets the timeout to 800ms.
+	 */
+	return lspcon->vendor == LSPCON_VENDOR_PARADE ? 800 : 400;
+}
+
 static enum drm_lspcon_mode lspcon_wait_mode(struct intel_lspcon *lspcon,
 					     enum drm_lspcon_mode mode)
 {
@@ -167,7 +179,8 @@ static enum drm_lspcon_mode lspcon_wait_mode(struct intel_lspcon *lspcon,
 	drm_dbg_kms(&i915->drm, "Waiting for LSPCON mode %s to settle\n",
 		    lspcon_mode_name(mode));
 
-	wait_for((current_mode = lspcon_get_current_mode(lspcon)) == mode, 400);
+	wait_for((current_mode = lspcon_get_current_mode(lspcon)) == mode,
+		 lspcon_get_mode_settle_timeout(lspcon));
 	if (current_mode != mode)
 		drm_err(&i915->drm, "LSPCON mode hasn't settled\n");
 
@@ -689,7 +702,7 @@ void lspcon_resume(struct intel_digital_port *dig_port)
 	struct drm_i915_private *i915 = to_i915(dev);
 	enum drm_lspcon_mode expected_mode;
 
-	if (!intel_bios_is_lspcon_present(i915, dig_port->base.port))
+	if (!intel_bios_encoder_is_lspcon(dig_port->base.devdata))
 		return;
 
 	if (!lspcon->active) {

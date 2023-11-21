@@ -23,6 +23,7 @@
 
 #include <linux/types.h>
 #include <linux/sched/task.h>
+#include <drm/ttm/ttm_tt.h>
 #include "amdgpu_sync.h"
 #include "amdgpu_object.h"
 #include "amdgpu_vm.h"
@@ -487,11 +488,11 @@ svm_range_validate_svm_bo(struct amdgpu_device *adev, struct svm_range *prange)
 
 	/* We need a new svm_bo. Spin-loop to wait for concurrent
 	 * svm_range_bo_release to finish removing this range from
-	 * its range list. After this, it is safe to reuse the
-	 * svm_bo pointer and svm_bo_list head.
+	 * its range list and set prange->svm_bo to null. After this,
+	 * it is safe to reuse the svm_bo pointer and svm_bo_list head.
 	 */
-	while (!list_empty_careful(&prange->svm_bo_list))
-		;
+	while (!list_empty_careful(&prange->svm_bo_list) || prange->svm_bo)
+		cond_resched();
 
 	return false;
 }
@@ -2171,7 +2172,15 @@ restart:
 		pr_debug("drain retry fault gpu %d svms %p\n", i, svms);
 
 		amdgpu_ih_wait_on_checkpoint_process_ts(pdd->dev->adev,
-						     &pdd->dev->adev->irq.ih1);
+				pdd->dev->adev->irq.retry_cam_enabled ?
+				&pdd->dev->adev->irq.ih :
+				&pdd->dev->adev->irq.ih1);
+
+		if (pdd->dev->adev->irq.retry_cam_enabled)
+			amdgpu_ih_wait_on_checkpoint_process_ts(pdd->dev->adev,
+				&pdd->dev->adev->irq.ih_soft);
+
+
 		pr_debug("drain retry fault gpu %d svms 0x%p done\n", i, svms);
 	}
 	if (atomic_cmpxchg(&svms->drain_pagefaults, drain, 0) != drain)

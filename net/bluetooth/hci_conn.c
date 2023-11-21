@@ -49,6 +49,11 @@ struct conn_handle_t {
 	__u16 handle;
 };
 
+struct le_conn_data {
+	bdaddr_t dst;
+	u8 dst_type;
+};
+
 static const struct sco_param esco_param_cvsd[] = {
 	{ EDR_ESCO_MASK & ~ESCO_2EV3, 0x000a,	0x01 }, /* S3 */
 	{ EDR_ESCO_MASK & ~ESCO_2EV3, 0x0007,	0x01 }, /* S2 */
@@ -327,6 +332,9 @@ static void hci_add_sco(struct hci_conn *conn, __u16 handle)
 static bool find_next_esco_param(struct hci_conn *conn,
 				 const struct sco_param *esco_param, int size)
 {
+	if (!conn->link)
+		return false;
+
 	for (; conn->attempt <= size; conn->attempt++) {
 		if (lmp_esco_2m_capable(conn->link) ||
 		    (esco_param[conn->attempt - 1].pkt_type & ESCO_2EV3))
@@ -495,6 +503,12 @@ static int hci_enhanced_setup_sync(struct hci_dev *hdev, void *data)
 	cp.pkt_type = __cpu_to_le16(param->pkt_type);
 	cp.max_latency = __cpu_to_le16(param->max_latency);
 
+	/* Overwrite the retransmission effort if it is set. */
+	if (conn->force_retrans_effort != SCO_NO_FORCE_RETRANS_EFFORT) {
+		cp.retrans_effort = conn->force_retrans_effort;
+		bt_dev_info(hdev, "Force dst:%pMR retrans effort to %d", &conn->dst,
+			    cp.retrans_effort);
+	}
 	if (hci_send_cmd(hdev, HCI_OP_ENHANCED_SETUP_SYNC_CONN, sizeof(cp), &cp) < 0)
 		return -EIO;
 
@@ -547,6 +561,12 @@ static bool hci_setup_sync_conn(struct hci_conn *conn, __u16 handle)
 	cp.pkt_type = __cpu_to_le16(param->pkt_type);
 	cp.max_latency = __cpu_to_le16(param->max_latency);
 
+	/* Overwrite the retransmission effort if it is set. */
+	if (conn->force_retrans_effort != SCO_NO_FORCE_RETRANS_EFFORT) {
+		cp.retrans_effort = conn->force_retrans_effort;
+		bt_dev_info(hdev, "Force dst:%pMR retrans effort to %d", &conn->dst,
+			    cp.retrans_effort);
+	}
 	if (hci_send_cmd(hdev, HCI_OP_SETUP_SYNC_CONN, sizeof(cp), &cp) < 0)
 		return false;
 
@@ -660,7 +680,8 @@ static void hci_conn_timeout(struct work_struct *work)
 
 	BT_DBG("hcon %p state %s", conn, state_to_string(conn->state));
 
-	WARN_ON(refcnt < 0);
+	if (refcnt < 0)
+		pr_warn("hcon refcount is %d\n", refcnt);
 
 	/* FIXME: It was observed that in pairing failed scenario, refcnt
 	 * drops below 0. Probably this is because l2cap_conn_del calls
@@ -1009,6 +1030,8 @@ struct hci_conn *hci_conn_add(struct hci_dev *hdev, int type, bdaddr_t *dst,
 	/* Set Default Authenticated payload timeout to 30s */
 	conn->auth_payload_timeout = DEFAULT_AUTH_PAYLOAD_TIMEOUT;
 
+	conn->force_retrans_effort = SCO_NO_FORCE_RETRANS_EFFORT;
+
 	if (conn->role == HCI_ROLE_MASTER)
 		conn->out = true;
 
@@ -1248,11 +1271,26 @@ void hci_conn_failed(struct hci_conn *conn, u8 status)
 
 static void create_le_conn_complete(struct hci_dev *hdev, void *data, int err)
 {
-	struct hci_conn *conn = data;
+	struct le_conn_data *conn_data = data;
+	struct hci_conn *conn;
 
 	bt_dev_dbg(hdev, "err %d", err);
 
+	if (!conn_data) {
+		bt_dev_err(hdev, "conn_data is NULL");
+		return;
+	}
+
 	hci_dev_lock(hdev);
+
+	conn = hci_conn_hash_lookup_le(hdev, &conn_data->dst, conn_data->dst_type);
+
+	if (!conn) {
+		bt_dev_err(hdev,
+			   "can't find conn with addr:%pMR,type:%d, skip the connection",
+			   &conn_data->dst, conn_data->dst_type);
+		goto done;
+	}
 
 	if (!err) {
 		hci_connect_le_scan_cleanup(conn, 0x00);
@@ -1266,12 +1304,28 @@ static void create_le_conn_complete(struct hci_dev *hdev, void *data, int err)
 	hci_conn_failed(conn, bt_status(err));
 
 done:
+	kfree(conn_data);
 	hci_dev_unlock(hdev);
 }
 
 static int hci_connect_le_sync(struct hci_dev *hdev, void *data)
 {
-	struct hci_conn *conn = data;
+	struct le_conn_data *conn_data = data;
+	struct hci_conn *conn;
+
+	if (!conn_data) {
+		bt_dev_err(hdev, "conn_data is NULL");
+		return -ECONNABORTED;
+	}
+
+	conn = hci_conn_hash_lookup_le(hdev, &conn_data->dst, conn_data->dst_type);
+
+	if (!conn) {
+		bt_dev_err(hdev,
+			   "can't find conn with addr:%pMR,type:%d, skip the connection",
+			   &conn_data->dst, conn_data->dst_type);
+		return -ECONNABORTED;
+	}
 
 	bt_dev_dbg(hdev, "conn %p", conn);
 
@@ -1284,6 +1338,7 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 {
 	struct hci_conn *conn;
 	struct smp_irk *irk;
+	struct le_conn_data *conn_data;
 	int err;
 
 	/* Let's make sure that le is enabled.*/
@@ -1347,10 +1402,17 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 	conn->state = BT_CONNECT;
 	clear_bit(HCI_CONN_SCANNING, &conn->flags);
 
-	err = hci_cmd_sync_queue(hdev, hci_connect_le_sync, conn,
+	conn_data = kmalloc(sizeof(*conn_data), GFP_KERNEL);
+	if (!conn_data)
+		return ERR_PTR(-ENOMEM);
+	bacpy(&conn_data->dst, dst);
+	conn_data->dst_type = dst_type;
+
+	err = hci_cmd_sync_queue(hdev, hci_connect_le_sync, conn_data,
 				 create_le_conn_complete);
 	if (err) {
 		hci_conn_del(conn);
+		kfree(conn_data);
 		return ERR_PTR(err);
 	}
 
@@ -1553,7 +1615,7 @@ struct hci_conn *hci_connect_le_scan(struct hci_dev *hdev, bdaddr_t *dst,
 		bt_dev_info(hdev, "Skipping le scan before connect");
 
 		return hci_connect_le(hdev, dst, dst_type,
-				sec_level, false,
+				false, sec_level,
 				HCI_LE_CONN_TIMEOUT,
 				HCI_ROLE_MASTER);
 	}
@@ -1595,6 +1657,15 @@ struct hci_conn *hci_connect_acl(struct hci_dev *hdev, bdaddr_t *dst,
 			return ERR_PTR(-ECONNREFUSED);
 
 		return ERR_PTR(-EOPNOTSUPP);
+	}
+
+	/* Reject outgoing connection to device with same BD ADDR against
+	 * CVE-2020-26555
+	 */
+	if (!bacmp(&hdev->bdaddr, dst)) {
+		bt_dev_dbg(hdev, "Reject connection with same BD_ADDR %pMR\n",
+			   dst);
+		return ERR_PTR(-ECONNREFUSED);
 	}
 
 	acl = hci_conn_hash_lookup_ba(hdev, ACL_LINK, dst);
@@ -1644,6 +1715,7 @@ struct hci_conn *hci_connect_sco(struct hci_dev *hdev, int type, bdaddr_t *dst,
 
 	sco->setting = setting;
 	sco->codec = *codec;
+	sco->force_retrans_effort = acl->force_retrans_effort;
 
 	if (acl->state == BT_CONNECTED &&
 	    (sco->state == BT_OPEN || sco->state == BT_CLOSED)) {
@@ -2369,34 +2441,41 @@ int hci_conn_security(struct hci_conn *conn, __u8 sec_level, __u8 auth_type,
 	if (!test_bit(HCI_CONN_AUTH, &conn->flags))
 		goto auth;
 
-	/* An authenticated FIPS approved combination key has sufficient
-	 * security for security level 4. */
-	if (conn->key_type == HCI_LK_AUTH_COMBINATION_P256 &&
-	    sec_level == BT_SECURITY_FIPS)
-		goto encrypt;
-
-	/* An authenticated combination key has sufficient security for
-	   security level 3. */
-	if ((conn->key_type == HCI_LK_AUTH_COMBINATION_P192 ||
-	     conn->key_type == HCI_LK_AUTH_COMBINATION_P256) &&
-	    sec_level == BT_SECURITY_HIGH)
-		goto encrypt;
-
-	/* An unauthenticated combination key has sufficient security for
-	   security level 1 and 2. */
-	if ((conn->key_type == HCI_LK_UNAUTH_COMBINATION_P192 ||
-	     conn->key_type == HCI_LK_UNAUTH_COMBINATION_P256) &&
-	    (sec_level == BT_SECURITY_MEDIUM || sec_level == BT_SECURITY_LOW))
-		goto encrypt;
-
-	/* A combination key has always sufficient security for the security
-	   levels 1 or 2. High security level requires the combination key
-	   is generated using maximum PIN code length (16).
-	   For pre 2.1 units. */
-	if (conn->key_type == HCI_LK_COMBINATION &&
-	    (sec_level == BT_SECURITY_MEDIUM || sec_level == BT_SECURITY_LOW ||
-	     conn->pin_length == 16))
-		goto encrypt;
+	switch (conn->key_type) {
+	case HCI_LK_AUTH_COMBINATION_P256:
+		/* An authenticated FIPS approved combination key has
+		 * sufficient security for security level 4 or lower.
+		 */
+		if (sec_level <= BT_SECURITY_FIPS)
+			goto encrypt;
+		break;
+	case HCI_LK_AUTH_COMBINATION_P192:
+		/* An authenticated combination key has sufficient security for
+		 * security level 3 or lower.
+		 */
+		if (sec_level <= BT_SECURITY_HIGH)
+			goto encrypt;
+		break;
+	case HCI_LK_UNAUTH_COMBINATION_P192:
+	case HCI_LK_UNAUTH_COMBINATION_P256:
+		/* An unauthenticated combination key has sufficient security
+		 * for security level 2 or lower.
+		 */
+		if (sec_level <= BT_SECURITY_MEDIUM)
+			goto encrypt;
+		break;
+	case HCI_LK_COMBINATION:
+		/* A combination key has always sufficient security for the
+		 * security levels 2 or lower. High security level requires the
+		 * combination key is generated using maximum PIN code length
+		 * (16). For pre 2.1 units.
+		 */
+		if (sec_level <= BT_SECURITY_MEDIUM || conn->pin_length == 16)
+			goto encrypt;
+		break;
+	default:
+		break;
+	}
 
 auth:
 	if (test_bit(HCI_CONN_ENCRYPT_PEND, &conn->flags))

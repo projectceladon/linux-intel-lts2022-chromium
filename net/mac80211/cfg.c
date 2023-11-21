@@ -566,6 +566,9 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	}
 
 	err = ieee80211_key_link(key, link, sta);
+	/* KRACK protection, shouldn't happen but just silently accept key */
+	if (err == -EALREADY)
+		err = 0;
 
  out_unlock:
 	mutex_unlock(&local->sta_mtx);
@@ -1220,7 +1223,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_local *local = sdata->local;
 	struct beacon_data *old;
 	struct ieee80211_sub_if_data *vlan;
-	u32 changed = BSS_CHANGED_BEACON_INT |
+	u64 changed = BSS_CHANGED_BEACON_INT |
 		      BSS_CHANGED_BEACON_ENABLED |
 		      BSS_CHANGED_BEACON |
 		      BSS_CHANGED_P2P_PS |
@@ -1252,6 +1255,21 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	prev_beacon_int = link_conf->beacon_int;
 	link_conf->beacon_int = params->beacon_interval;
 
+	if (params->vht_cap) {
+		link_conf->vht_su_beamformer =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE);
+		link_conf->vht_su_beamformee =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE);
+		link_conf->vht_mu_beamformer =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE);
+		link_conf->vht_mu_beamformee =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE);
+	}
+
 	if (params->he_cap && params->he_oper) {
 		link_conf->he_support = true;
 		link_conf->htc_trig_based_pkt_ext =
@@ -1264,6 +1282,26 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 		if (params->beacon.he_bss_color.enabled)
 			changed |= BSS_CHANGED_HE_BSS_COLOR;
+	}
+
+	if (params->he_cap) {
+		link_conf->he_su_beamformer =
+			params->he_cap->phy_cap_info[3] &
+				IEEE80211_HE_PHY_CAP3_SU_BEAMFORMER;
+		link_conf->he_su_beamformee =
+			params->he_cap->phy_cap_info[4] &
+				IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
+		link_conf->he_mu_beamformer =
+			params->he_cap->phy_cap_info[4] &
+				IEEE80211_HE_PHY_CAP4_MU_BEAMFORMER;
+		link_conf->he_full_ul_mumimo =
+			params->he_cap->phy_cap_info[2] &
+				IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO;
+	}
+
+	if (params->eht_cap) {
+		link_conf->eht_puncturing = params->punct_bitmap;
+		changed |= BSS_CHANGED_EHT_PUNCTURING;
 	}
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP &&
@@ -1745,7 +1783,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 	/* VHT can override some HT caps such as the A-MSDU max length */
 	if (params->vht_capa)
 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
-						    params->vht_capa, link_sta);
+						    params->vht_capa, NULL,
+						    link_sta);
 
 	if (params->he_capa)
 		ieee80211_he_cap_ie_to_sta_he_cap(sdata, sband,
@@ -2562,47 +2601,51 @@ static int ieee80211_change_bss(struct wiphy *wiphy,
 				struct bss_parameters *params)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_link_data *link;
 	struct ieee80211_supported_band *sband;
 	u32 changed = 0;
 
-	if (!sdata_dereference(sdata->deflink.u.ap.beacon, sdata))
+	link = ieee80211_link_or_deflink(sdata, params->link_id, true);
+	if (IS_ERR(link))
+		return PTR_ERR(link);
+
+	if (!sdata_dereference(link->u.ap.beacon, sdata))
 		return -ENOENT;
 
-	sband = ieee80211_get_sband(sdata);
+	sband = ieee80211_get_link_sband(link);
 	if (!sband)
 		return -EINVAL;
 
+	if (params->basic_rates) {
+		if (!ieee80211_parse_bitrates(link->conf->chandef.width,
+					      wiphy->bands[sband->band],
+					      params->basic_rates,
+					      params->basic_rates_len,
+					      &link->conf->basic_rates))
+			return -EINVAL;
+		changed |= BSS_CHANGED_BASIC_RATES;
+		ieee80211_check_rate_mask(link);
+	}
+
 	if (params->use_cts_prot >= 0) {
-		sdata->vif.bss_conf.use_cts_prot = params->use_cts_prot;
+		link->conf->use_cts_prot = params->use_cts_prot;
 		changed |= BSS_CHANGED_ERP_CTS_PROT;
 	}
 	if (params->use_short_preamble >= 0) {
-		sdata->vif.bss_conf.use_short_preamble =
-			params->use_short_preamble;
+		link->conf->use_short_preamble = params->use_short_preamble;
 		changed |= BSS_CHANGED_ERP_PREAMBLE;
 	}
 
-	if (!sdata->vif.bss_conf.use_short_slot &&
+	if (!link->conf->use_short_slot &&
 	    (sband->band == NL80211_BAND_5GHZ ||
 	     sband->band == NL80211_BAND_6GHZ)) {
-		sdata->vif.bss_conf.use_short_slot = true;
+		link->conf->use_short_slot = true;
 		changed |= BSS_CHANGED_ERP_SLOT;
 	}
 
 	if (params->use_short_slot_time >= 0) {
-		sdata->vif.bss_conf.use_short_slot =
-			params->use_short_slot_time;
+		link->conf->use_short_slot = params->use_short_slot_time;
 		changed |= BSS_CHANGED_ERP_SLOT;
-	}
-
-	if (params->basic_rates) {
-		ieee80211_parse_bitrates(sdata->vif.bss_conf.chandef.width,
-					 wiphy->bands[sband->band],
-					 params->basic_rates,
-					 params->basic_rates_len,
-					 &sdata->vif.bss_conf.basic_rates);
-		changed |= BSS_CHANGED_BASIC_RATES;
-		ieee80211_check_rate_mask(&sdata->deflink);
 	}
 
 	if (params->ap_isolate >= 0) {
@@ -2614,30 +2657,29 @@ static int ieee80211_change_bss(struct wiphy *wiphy,
 	}
 
 	if (params->ht_opmode >= 0) {
-		sdata->vif.bss_conf.ht_operation_mode =
-			(u16) params->ht_opmode;
+		link->conf->ht_operation_mode = (u16)params->ht_opmode;
 		changed |= BSS_CHANGED_HT;
 	}
 
 	if (params->p2p_ctwindow >= 0) {
-		sdata->vif.bss_conf.p2p_noa_attr.oppps_ctwindow &=
+		link->conf->p2p_noa_attr.oppps_ctwindow &=
 					~IEEE80211_P2P_OPPPS_CTWINDOW_MASK;
-		sdata->vif.bss_conf.p2p_noa_attr.oppps_ctwindow |=
+		link->conf->p2p_noa_attr.oppps_ctwindow |=
 			params->p2p_ctwindow & IEEE80211_P2P_OPPPS_CTWINDOW_MASK;
 		changed |= BSS_CHANGED_P2P_PS;
 	}
 
 	if (params->p2p_opp_ps > 0) {
-		sdata->vif.bss_conf.p2p_noa_attr.oppps_ctwindow |=
+		link->conf->p2p_noa_attr.oppps_ctwindow |=
 					IEEE80211_P2P_OPPPS_ENABLE_BIT;
 		changed |= BSS_CHANGED_P2P_PS;
 	} else if (params->p2p_opp_ps == 0) {
-		sdata->vif.bss_conf.p2p_noa_attr.oppps_ctwindow &=
+		link->conf->p2p_noa_attr.oppps_ctwindow &=
 					~IEEE80211_P2P_OPPPS_ENABLE_BIT;
 		changed |= BSS_CHANGED_P2P_PS;
 	}
 
-	ieee80211_link_info_change_notify(sdata, &sdata->deflink, changed);
+	ieee80211_link_info_change_notify(sdata, link, changed);
 
 	return 0;
 }
@@ -2733,7 +2775,7 @@ static int ieee80211_scan(struct wiphy *wiphy,
 		 * If the scan has been forced (and the driver supports
 		 * forcing), don't care about being beaconing already.
 		 * This will create problems to the attached stations (e.g. all
-		 * the  frames sent while scanning on other channel will be
+		 * the frames sent while scanning on other channel will be
 		 * lost)
 		 */
 		if (sdata->deflink.u.ap.beacon &&
@@ -3465,7 +3507,7 @@ void ieee80211_channel_switch_disconnect(struct ieee80211_vif *vif, bool block_t
 EXPORT_SYMBOL(ieee80211_channel_switch_disconnect);
 
 static int ieee80211_set_after_csa_beacon(struct ieee80211_sub_if_data *sdata,
-					  u32 *changed)
+					  u64 *changed)
 {
 	int err;
 
@@ -3508,7 +3550,7 @@ static int ieee80211_set_after_csa_beacon(struct ieee80211_sub_if_data *sdata,
 static int __ieee80211_csa_finalize(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_local *local = sdata->local;
-	u32 changed = 0;
+	u64 changed = 0;
 	int err;
 
 	sdata_assert_lock(sdata);
@@ -3544,6 +3586,12 @@ static int __ieee80211_csa_finalize(struct ieee80211_sub_if_data *sdata)
 	if (err)
 		return err;
 
+	if (sdata->vif.bss_conf.eht_puncturing != sdata->vif.bss_conf.csa_punct_bitmap) {
+		sdata->vif.bss_conf.eht_puncturing =
+					sdata->vif.bss_conf.csa_punct_bitmap;
+		changed |= BSS_CHANGED_EHT_PUNCTURING;
+	}
+
 	ieee80211_link_info_change_notify(sdata, &sdata->deflink, changed);
 
 	if (sdata->deflink.csa_block_tx) {
@@ -3556,7 +3604,8 @@ static int __ieee80211_csa_finalize(struct ieee80211_sub_if_data *sdata)
 	if (err)
 		return err;
 
-	cfg80211_ch_switch_notify(sdata->dev, &sdata->deflink.csa_chandef, 0);
+	cfg80211_ch_switch_notify(sdata->dev, &sdata->deflink.csa_chandef, 0,
+				  sdata->vif.bss_conf.eht_puncturing);
 
 	return 0;
 }
@@ -3818,9 +3867,13 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 		goto out;
 	}
 
+	if (params->punct_bitmap && !sdata->vif.bss_conf.eht_support)
+		goto out;
+
 	sdata->deflink.csa_chandef = params->chandef;
 	sdata->deflink.csa_block_tx = params->block_tx;
 	sdata->vif.bss_conf.csa_active = true;
+	sdata->vif.bss_conf.csa_punct_bitmap = params->punct_bitmap;
 
 	if (sdata->deflink.csa_block_tx)
 		ieee80211_stop_vif_queues(local, sdata,
@@ -3828,7 +3881,8 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 
 	cfg80211_ch_switch_started_notify(sdata->dev,
 					  &sdata->deflink.csa_chandef, 0,
-					  params->count, params->block_tx);
+					  params->count, params->block_tx,
+					  sdata->vif.bss_conf.csa_punct_bitmap);
 
 	if (changed) {
 		ieee80211_link_info_change_notify(sdata, &sdata->deflink,
@@ -3991,19 +4045,20 @@ static int ieee80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
 	mutex_lock(&local->mtx);
 
 	rcu_read_lock();
+	sta = sta_info_get_bss(sdata, peer);
+	if (!sta) {
+		ret = -ENOLINK;
+		goto unlock;
+	}
+
+	qos = sta->sta.wme;
+
 	chanctx_conf = rcu_dereference(sdata->vif.bss_conf.chanctx_conf);
 	if (WARN_ON(!chanctx_conf)) {
 		ret = -EINVAL;
 		goto unlock;
 	}
 	band = chanctx_conf->def.chan->band;
-	sta = sta_info_get_bss(sdata, peer);
-	if (sta) {
-		qos = sta->sta.wme;
-	} else {
-		ret = -ENOLINK;
-		goto unlock;
-	}
 
 	if (qos) {
 		fc = cpu_to_le16(IEEE80211_FTYPE_DATA |
@@ -4140,7 +4195,7 @@ static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_link_data *link;
 	int ret;
-	u32 changed = 0;
+	u64 changed = 0;
 
 	link = sdata_dereference(sdata->link[link_id], sdata);
 
@@ -4345,9 +4400,6 @@ static int ieee80211_get_txq_stats(struct wiphy *wiphy,
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata;
 	int ret = 0;
-
-	if (!local->ops->wake_tx_queue)
-		return 1;
 
 	spin_lock_bh(&local->fq.lock);
 	rcu_read_lock();
@@ -4633,8 +4685,7 @@ void ieee80211_color_collision_detection_work(struct work_struct *work)
 	struct ieee80211_sub_if_data *sdata = link->sdata;
 
 	sdata_lock(sdata);
-	cfg80211_obss_color_collision_notify(sdata->dev, link->color_bitmap,
-					     GFP_KERNEL);
+	cfg80211_obss_color_collision_notify(sdata->dev, link->color_bitmap);
 	sdata_unlock(sdata);
 }
 
@@ -4648,7 +4699,7 @@ void ieee80211_color_change_finish(struct ieee80211_vif *vif)
 EXPORT_SYMBOL_GPL(ieee80211_color_change_finish);
 
 void
-ieeee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
+ieee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 				       u64 color_bitmap, gfp_t gfp)
 {
 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
@@ -4668,7 +4719,7 @@ ieeee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 				     &link->color_collision_detect_work,
 				     msecs_to_jiffies(500));
 }
-EXPORT_SYMBOL_GPL(ieeee80211_obss_color_collision_notify);
+EXPORT_SYMBOL_GPL(ieee80211_obss_color_collision_notify);
 
 static int
 ieee80211_color_change(struct wiphy *wiphy, struct net_device *dev,

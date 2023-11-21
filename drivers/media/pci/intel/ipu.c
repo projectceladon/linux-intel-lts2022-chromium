@@ -455,14 +455,18 @@ static int ipu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		isp->cpd_fw_name = IPU6SE_FIRMWARE_NAME;
 		break;
 	case IPU6EP_ADL_P_PCI_ID:
-	case IPU6EP_ADL_N_PCI_ID:
 	case IPU6EP_RPL_P_PCI_ID:
 		ipu_ver = IPU_VER_6EP;
 		isp->cpd_fw_name = is_es ? IPU6EPES_FIRMWARE_NAME : IPU6EP_FIRMWARE_NAME;
 		break;
+	case IPU6EP_ADL_N_PCI_ID:
+		ipu_ver = IPU_VER_6EP;
+		isp->cpd_fw_name = IPU6EPADLN_FIRMWARE_NAME;
+		break;
 	case IPU6EP_MTL_PCI_ID:
 		ipu_ver = IPU_VER_6EP_MTL;
-		isp->cpd_fw_name = IPU6EPMTL_FIRMWARE_NAME;
+		isp->cpd_fw_name = is_es ? IPU6EPMTLES_FIRMWARE_NAME
+					 : IPU6EPMTL_FIRMWARE_NAME;
 		break;
 	default:
 		WARN(1, "Unsupported IPU device");

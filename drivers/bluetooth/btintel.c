@@ -285,7 +285,6 @@ int btintel_version_info(struct hci_dev *hdev, struct intel_version *ver)
 	case 0x12:      /* ThP */
 	case 0x13:      /* HrP */
 	case 0x14:      /* CcP */
-	case 0x1c:      /* GaP */
 		break;
 	default:
 		bt_dev_err(hdev, "Unsupported Intel hardware variant (%u)",
@@ -460,7 +459,7 @@ static int btintel_version_info_tlv(struct hci_dev *hdev,
 	case 0x18:	/* Slr */
 	case 0x19:	/* Slr-F */
 	case 0x1b:      /* Mgr */
-	case 0x1c:      /* GaP */
+	case 0x1c:	/* Gale Peak (GaP) */
 		break;
 	default:
 		bt_dev_err(hdev, "Unsupported Intel hardware variant (0x%x)",
@@ -2443,6 +2442,7 @@ static void btintel_set_msft_opcode(struct hci_dev *hdev, u8 hw_variant)
 	case 0x18:
 	case 0x19:
 	case 0x1b:
+	case 0x1c:
 		hci_set_msft_opcode(hdev, 0xFC1E);
 		break;
 	default:
@@ -2565,7 +2565,6 @@ static int btintel_setup_combined(struct hci_dev *hdev)
 		case 0x12:      /* ThP */
 		case 0x13:      /* HrP */
 		case 0x14:      /* CcP */
-		case 0x1c:      /* GaP */
 			set_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks);
 			fallthrough;
 		case 0x0c:	/* WsP */

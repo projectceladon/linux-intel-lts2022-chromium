@@ -755,7 +755,7 @@ const struct uvc_control_mapping uvc_ctrl_power_line_mapping_limited = {
 				  V4L2_CID_POWER_LINE_FREQUENCY_50HZ),
 };
 
-static const struct uvc_control_mapping uvc_ctrl_power_line_mapping_uvc11 = {
+const struct uvc_control_mapping uvc_ctrl_power_line_mapping_uvc11 = {
 	.id		= V4L2_CID_POWER_LINE_FREQUENCY,
 	.entity		= UVC_GUID_UVC_PROCESSING,
 	.selector	= UVC_PU_POWER_LINE_FREQUENCY_CONTROL,
@@ -1389,6 +1389,9 @@ int uvc_query_v4l2_menu(struct uvc_video_chain *chain,
 	memset(query_menu, 0, sizeof(*query_menu));
 	query_menu->id = id;
 	query_menu->index = index;
+
+	if (index >= BITS_PER_TYPE(mapping->menu_mask))
+		return -EINVAL;
 
 	ret = mutex_lock_interruptible(&chain->ctrl_mutex);
 	if (ret < 0)
