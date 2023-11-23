@@ -78,7 +78,7 @@
 		kaslr-seed = <0 0>;
 	};
 
-	dmic-codec {
+	dmic_codec: dmic-codec {
 		compatible = "dmic-codec";
 		num-channels = <2>;
 		wakeup-delay-ms = <50>;

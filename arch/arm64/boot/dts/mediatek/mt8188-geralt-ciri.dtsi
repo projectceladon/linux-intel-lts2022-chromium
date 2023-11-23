@@ -10,6 +10,9 @@
 /delete-node/ &panel;
 /delete-node/ &backlight_lcd0;
 /delete-node/ &pp3300_dx_edp;
+/delete-node/ &nau8825;
+/delete-node/ &max98390_rl;
+/delete-node/ &max98390_rr;
 
 &disp_dsi0 {
 	panel: panel1@0 {
@@ -21,12 +24,102 @@
 	status = "disabled";
 };
 
+&dmic_codec {
+	wakeup-delay-ms = <100>;
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pin>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	rt5682s: rt5682s@1a {
+		compatible = "realtek,rt5682s";
+		reg = <0x1a>;
+		interrupt-parent = <&pio>;
+		interrupts = <108 IRQ_TYPE_EDGE_BOTH>;
+		realtek,jd-src = <1>;
+		#sound-dai-cells = <0>;
+		status = "okay";
+	};
+};
+
+&max98390_fl {
+	#sound-dai-cells = <0>;
+	compatible = "maxim,max98390";
+	reg = <0x39>;
+	sound-name-prefix = "Front Left";
+	reset-gpios = <&pio 118 1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&max98390_pins_default>;
+	status = "okay";
+};
+
+&max98390_fr {
+	#sound-dai-cells = <0>;
+	compatible = "maxim,max98390";
+	reg = <0x38>;
+	sound-name-prefix = "Front Right";
+	status = "okay";
+};
+
 &i2c2 {
 	status = "disabled";
 };
 
 &mmc1 {
 	status = "disabled";
+};
+
+&sound {
+	compatible = "mediatek,mt8188-rt5682s";
+	model = "mt8188_m98390_5682";
+
+	audio-routing =
+		"ETDM1_OUT", "ETDM_SPK_PIN",
+		"ETDM2_OUT", "ETDM_HP_PIN",
+		"ETDM1_IN", "ETDM_SPK_PIN",
+		"ETDM2_IN", "ETDM_HP_PIN",
+		"ADDA Capture", "MTKAIF_PIN",
+		"Headphone Jack", "HPOL",
+		"Headphone Jack", "HPOR",
+		"IN1P", "Headset Mic",
+		"Left Spk", "Front Left BE_OUT",
+		"Right Spk", "Front Right BE_OUT";
+	status = "okay";
+
+	dai-link-0 {
+		link-name = "ETDM2_OUT_BE";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&rt5682s>;
+		};
+	};
+
+	dai-link-1 {
+		link-name = "ETDM2_IN_BE";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&rt5682s>;
+		};
+	};
+
+	dai-link-2 {
+		link-name = "ETDM1_OUT_BE";
+		dai-format = "i2s";
+		mediatek,clk-provider = "cpu";
+		codec {
+			sound-dai = <&max98390_fl>,
+				    <&max98390_fr>;
+		};
+	};
+
+	dai-link-3 {
+		link-name = "ETDM1_IN_BE";
+		dai-format = "i2s";
+		mediatek,clk-provider = "cpu";
+	};
 };
 
 &spi1 {
@@ -238,6 +331,28 @@
 		"",
 		"SPMI_SCL",
 		"SPMI_SDA";
+
+	aud_etdm_hp_on: aud_etdm_hp_on {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO110__FUNC_I0_I2SIN_D0>,
+				 <PINMUX_GPIO114__FUNC_O_I2SO2_MCK>,
+				 <PINMUX_GPIO115__FUNC_B0_I2SO2_BCK>,
+				 <PINMUX_GPIO116__FUNC_B0_I2SO2_WS>,
+				 <PINMUX_GPIO117__FUNC_O_I2SO2_D0>;
+		};
+	};
+
+	aud_etdm_hp_off: aud_etdm_hp_off {
+		pins-cmd-dat {
+			pinmux = <PINMUX_GPIO110__FUNC_B_GPIO110>,
+				 <PINMUX_GPIO114__FUNC_B_GPIO114>,
+				 <PINMUX_GPIO115__FUNC_B_GPIO115>,
+				 <PINMUX_GPIO116__FUNC_B_GPIO116>,
+				 <PINMUX_GPIO117__FUNC_B_GPIO117>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
 
 	touch_reset: touch-reset {
 		pins-rst {
