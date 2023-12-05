@@ -72,6 +72,10 @@
 	status = "disabled";
 };
 
+&ap_sar_sensor {
+	status = "disabled";
+};
+
 &sound {
 	compatible = "mediatek,mt8188-rt5682s";
 	model = "mt8188_m98390_5682";
