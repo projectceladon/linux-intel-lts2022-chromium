@@ -53,6 +53,7 @@
 #include <drm/drm_drv.h>
 
 #include "amdgpu.h"
+#include "amdgpu_dma_buf.h"
 #include "amdgpu_object.h"
 #include "amdgpu_trace.h"
 #include "amdgpu_amdkfd.h"
@@ -72,8 +73,6 @@ static int amdgpu_ttm_backend_bind(struct ttm_device *bdev,
 				   struct ttm_resource *bo_mem);
 static void amdgpu_ttm_backend_unbind(struct ttm_device *bdev,
 				      struct ttm_tt *ttm);
-
-int amdgpu_try_dma_buf_mmap(struct file *filp, struct vm_area_struct *vma);
 
 static int amdgpu_ttm_init_on_chip(struct amdgpu_device *adev,
 				    unsigned int type,
