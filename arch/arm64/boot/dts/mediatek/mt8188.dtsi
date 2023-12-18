@@ -1303,7 +1303,7 @@
 				      "pmif_tmr_ck",
 				      "spmimst_clk_mux";
 			assigned-clocks = <&topckgen CLK_TOP_SPMI_M_MST>;
-			assigned-clock-parents = <&topckgen CLK_TOP_MAINPLL_D7_D8>;
+			assigned-clock-parents = <&topckgen CLK_TOP_ULPOSC1_D10>;
 		};
 
 		infra_iommu: iommu@10315000 {
