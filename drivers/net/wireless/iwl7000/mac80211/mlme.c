@@ -5201,9 +5201,6 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 				     local->rx_chains);
 	rcu_read_unlock();
 
-	/* will change later if needed */
-	link->smps_mode = IEEE80211_SMPS_OFF;
-
 	/*
 	 * If this fails (possibly due to channel context sharing
 	 * on incompatible channels, e.g. 80+80 and 160 sharing the
