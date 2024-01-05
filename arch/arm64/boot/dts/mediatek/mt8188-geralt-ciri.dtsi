@@ -127,8 +127,9 @@
 };
 
 &spi1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&spi1_pins>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi1_pins_default>;
+	pinctrl-1 = <&spi1_pins_sleep>;
 	status = "okay";
 	dma-names = "tx","rx";
 	num-cs = <1>;
@@ -365,14 +366,25 @@
 		};
 	};
 
-	spi1_pins: spi1_pins {
-		pins_spi {
+	spi1_pins_default: spi1-pins-default {
+		pins-bus {
 			pinmux = <PINMUX_GPIO75__FUNC_O_SPIM1_CSB>,
 				 <PINMUX_GPIO76__FUNC_O_SPIM1_CLK>,
 				 <PINMUX_GPIO77__FUNC_B0_SPIM1_MOSI>,
 				 <PINMUX_GPIO78__FUNC_B0_SPIM1_MISO>;
 			bias-disable;
 			drive-strength = <MTK_DRIVE_10mA>;
+		};
+	};
+
+	spi1_pins_sleep: spi1-pins-sleep {
+		pins-bus {
+			pinmux = <PINMUX_GPIO75__FUNC_B_GPIO75>,
+				 <PINMUX_GPIO76__FUNC_B_GPIO76>,
+				 <PINMUX_GPIO77__FUNC_B_GPIO77>,
+				 <PINMUX_GPIO78__FUNC_B_GPIO78>;
+			bias-pull-down;
+			input-enable;
 		};
 	};
 };
