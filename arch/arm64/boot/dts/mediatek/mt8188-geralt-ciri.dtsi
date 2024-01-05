@@ -364,4 +364,15 @@
 			output-high;
 		};
 	};
+
+	spi1_pins: spi1_pins {
+		pins_spi {
+			pinmux = <PINMUX_GPIO75__FUNC_O_SPIM1_CSB>,
+				 <PINMUX_GPIO76__FUNC_O_SPIM1_CLK>,
+				 <PINMUX_GPIO77__FUNC_B0_SPIM1_MOSI>,
+				 <PINMUX_GPIO78__FUNC_B0_SPIM1_MISO>;
+			bias-disable;
+			drive-strength = <MTK_DRIVE_10mA>;
+		};
+	};
 };
