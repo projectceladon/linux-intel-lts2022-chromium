@@ -15,6 +15,7 @@
 #include "intel_display_types.h"
 #include "intel_dp_aux.h"
 #include "intel_dpio_phy.h"
+#include "intel_fdi.h"
 #include "intel_fifo_underrun.h"
 #include "intel_hdmi.h"
 #include "intel_hotplug.h"
@@ -86,8 +87,11 @@ static int g4x_hdmi_compute_config(struct intel_encoder *encoder,
 {
 	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
 
-	if (HAS_PCH_SPLIT(i915))
+	if (HAS_PCH_SPLIT(i915)) {
 		crtc_state->has_pch_encoder = true;
+		if (!intel_fdi_compute_pipe_bpp(crtc_state))
+			return -EINVAL;
+	}
 
 	return intel_hdmi_compute_config(encoder, crtc_state, conn_state);
 }
