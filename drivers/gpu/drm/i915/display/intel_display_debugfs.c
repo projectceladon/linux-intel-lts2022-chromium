@@ -237,28 +237,26 @@ static void intel_dp_info(struct seq_file *m,
 
 	seq_printf(m, "\tDPCD rev: %x\n", intel_dp->dpcd[DP_DPCD_REV]);
 	seq_printf(m, "\taudio support: %s\n",
-		   str_yes_no(intel_dp->has_audio));
+		   str_yes_no(intel_connector->base.display_info.has_audio));
 
 	drm_dp_downstream_debug(m, intel_dp->dpcd, intel_dp->downstream_ports,
 				edid ? edid->data : NULL, &intel_dp->aux);
 }
 
 static void intel_dp_mst_info(struct seq_file *m,
-			      struct intel_connector *intel_connector)
+			      struct intel_connector *connector)
 {
-	bool has_audio = intel_connector->port->has_audio;
+	bool has_audio = connector->base.display_info.has_audio;
 
 	seq_printf(m, "\taudio support: %s\n", str_yes_no(has_audio));
 }
 
 static void intel_hdmi_info(struct seq_file *m,
-			    struct intel_connector *intel_connector)
+			    struct intel_connector *connector)
 {
-	struct intel_encoder *intel_encoder = intel_attached_encoder(intel_connector);
-	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(intel_encoder);
+	bool has_audio = connector->base.display_info.has_audio;
 
-	seq_printf(m, "\taudio support: %s\n",
-		   str_yes_no(intel_hdmi->has_audio));
+	seq_printf(m, "\taudio support: %s\n", str_yes_no(has_audio));
 }
 
 static void intel_connector_info(struct seq_file *m,
@@ -1192,8 +1190,8 @@ DEFINE_SHOW_ATTRIBUTE(i915_lpsp_capability);
 
 static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 {
-	struct drm_connector *connector = m->private;
-	struct drm_device *dev = connector->dev;
+	struct intel_connector *connector = to_intel_connector(m->private);
+	struct drm_i915_private *i915 = to_i915(connector->base.dev);
 	struct drm_crtc *crtc;
 	struct intel_dp *intel_dp;
 	struct drm_modeset_acquire_ctx ctx;
@@ -1205,7 +1203,7 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 
 	do {
 		try_again = false;
-		ret = drm_modeset_lock(&dev->mode_config.connection_mutex,
+		ret = drm_modeset_lock(&i915->drm.mode_config.connection_mutex,
 				       &ctx);
 		if (ret) {
 			if (ret == -EDEADLK && !drm_modeset_backoff(&ctx)) {
@@ -1214,8 +1212,8 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 			}
 			break;
 		}
-		crtc = connector->state->crtc;
-		if (connector->status != connector_status_connected || !crtc) {
+		crtc = connector->base.state->crtc;
+		if (connector->base.status != connector_status_connected || !crtc) {
 			ret = -ENODEV;
 			break;
 		}
@@ -1230,24 +1228,24 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 		} else if (ret) {
 			break;
 		}
-		intel_dp = intel_attached_dp(to_intel_connector(connector));
+		intel_dp = intel_attached_dp(connector);
 		crtc_state = to_intel_crtc_state(crtc->state);
 		seq_printf(m, "DSC_Enabled: %s\n",
 			   str_yes_no(crtc_state->dsc.compression_enable));
 		seq_printf(m, "DSC_Sink_Support: %s\n",
-			   str_yes_no(drm_dp_sink_supports_dsc(intel_dp->dsc_dpcd)));
+			   str_yes_no(drm_dp_sink_supports_dsc(connector->dp.dsc_dpcd)));
 		seq_printf(m, "DSC_Output_Format_Sink_Support: RGB: %s YCBCR420: %s YCBCR444: %s\n",
-			   str_yes_no(drm_dp_dsc_sink_supports_format(intel_dp->dsc_dpcd,
+			   str_yes_no(drm_dp_dsc_sink_supports_format(connector->dp.dsc_dpcd,
 								      DP_DSC_RGB)),
-			   str_yes_no(drm_dp_dsc_sink_supports_format(intel_dp->dsc_dpcd,
+			   str_yes_no(drm_dp_dsc_sink_supports_format(connector->dp.dsc_dpcd,
 								      DP_DSC_YCbCr420_Native)),
-			   str_yes_no(drm_dp_dsc_sink_supports_format(intel_dp->dsc_dpcd,
+			   str_yes_no(drm_dp_dsc_sink_supports_format(connector->dp.dsc_dpcd,
 								      DP_DSC_YCbCr444)));
 		seq_printf(m, "Force_DSC_Enable: %s\n",
 			   str_yes_no(intel_dp->force_dsc_en));
 		if (!intel_dp_is_edp(intel_dp))
 			seq_printf(m, "FEC_Sink_Support: %s\n",
-				   str_yes_no(drm_dp_sink_supports_fec(intel_dp->fec_capable)));
+				   str_yes_no(drm_dp_sink_supports_fec(connector->dp.fec_capability)));
 	} while (try_again);
 
 	drm_modeset_drop_locks(&ctx);

@@ -11,22 +11,15 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
-#include <linux/version.h>
 #include "mali_kbase_config_platform.h"
 #include "mali_kbase_runtime_pm.h"
 
 /* list of clocks required by GPU */
 static const char * const mt8192_gpu_clks[] = {
-#if (KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE)
-	/* Our old downstream code defines many clocks */
 	"clk_mux",
 	"clk_main_parent",
 	"clk_sub_parent",
 	"subsys_mfg_cg",
-#else
-	/* Upstream binding only uses one clock */
-	NULL,
-#endif
 };
 
 const struct mtk_hw_config mt8192_hw_config = {
@@ -41,9 +34,9 @@ const struct mtk_hw_config mt8192_hw_config = {
 	.top_tsvalueb_en = 0x3,
 	.bus_idle_bit = 0x4,
 	.vgpu_min_microvolt = 562500,
-	.vgpu_max_microvolt = 800000,
+	.vgpu_max_microvolt = 843750,
 	.vsram_gpu_min_microvolt = 750000,
-	.vsram_gpu_max_microvolt = 800000,
+	.vsram_gpu_max_microvolt = 843750,
 	.bias_min_microvolt = 0,
 	.bias_max_microvolt = 250000,
 	.supply_tolerance_microvolt = 125,
@@ -53,10 +46,7 @@ const struct mtk_hw_config mt8192_hw_config = {
 };
 
 struct mtk_platform_context mt8192_platform_context = {
-#if (KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE)
-	/* Since v6.1 all the auto-reparenting code has been merged */
 	.manual_mux_reparent = true,
-#endif
 	.config = &mt8192_hw_config,
 };
 
