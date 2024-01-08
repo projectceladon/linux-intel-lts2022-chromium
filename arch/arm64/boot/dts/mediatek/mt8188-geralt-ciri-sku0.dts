@@ -9,6 +9,7 @@
 #include "mt8188-geralt-ciri.dtsi"
 
 / {
-	model = "Google Ciri unprovisioned board";
-	compatible = "google,ciri-sku2147483409", "google,ciri", "mediatek,mt8188";
+	model = "Google Ciri sku0/unprovisioned board";
+	compatible = "google,ciri-sku0", "google,ciri-sku2147483409",
+	 	     "google,ciri", "mediatek,mt8188";
 };
