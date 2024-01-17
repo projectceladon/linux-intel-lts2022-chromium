@@ -53,6 +53,7 @@
 	reset-gpios = <&pio 118 1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&max98390_pins_default>;
+	maxim,dsm_param_name = "dsm_param.bin";
 	status = "okay";
 };
 
@@ -61,6 +62,7 @@
 	compatible = "maxim,max98390";
 	reg = <0x38>;
 	sound-name-prefix = "Front Right";
+	maxim,dsm_param_name = "dsm_param.bin";
 	status = "okay";
 };
 
