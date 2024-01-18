@@ -73,3 +73,7 @@
 		};
 	};
 };
+
+&touchscreen {
+		himax,pid = <0x1003>;
+};
