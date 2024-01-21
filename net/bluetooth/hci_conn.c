@@ -173,13 +173,11 @@ static void hci_conn_cleanup(struct hci_conn *conn)
 			hdev->notify(hdev, HCI_NOTIFY_CONN_DEL);
 	}
 
-	hci_conn_del_sysfs(conn);
-
 	debugfs_remove_recursive(conn->debugfs);
 
-	hci_dev_put(hdev);
+	hci_conn_del_sysfs(conn);
 
-	hci_conn_put(conn);
+	hci_dev_put(hdev);
 }
 
 static void le_scan_cleanup(struct work_struct *work)
@@ -1351,8 +1349,10 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 
 	/* Since the controller supports only one LE connection attempt at a
 	 * time, we return -EBUSY if there is any connection attempt running.
+	 * CHROMIUM: extend the restriction to BR/EDR connection to prevent
+	 * from race. Context: b/302233940.
 	 */
-	if (hci_lookup_le_connect(hdev))
+	if (hci_lookup_connect(hdev))
 		return ERR_PTR(-EBUSY);
 
 	/* If there's already a connection object but it's not in
@@ -1658,6 +1658,12 @@ struct hci_conn *hci_connect_acl(struct hci_dev *hdev, bdaddr_t *dst,
 
 		return ERR_PTR(-EOPNOTSUPP);
 	}
+
+	/* CHROMIUM: Prevent race caused by concurrent BREDR and LE connection.
+	 * Context: b/302233940.
+	 */
+	if (hci_lookup_le_connect(hdev))
+		return ERR_PTR(-EBUSY);
 
 	/* Reject outgoing connection to device with same BD ADDR against
 	 * CVE-2020-26555

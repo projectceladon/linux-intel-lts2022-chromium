@@ -448,14 +448,12 @@ static void chv_load_cgm_csc(struct intel_crtc *crtc,
 /* convert hw value with given bit_precision to lut property val */
 static u32 intel_color_lut_pack(u32 val, int bit_precision)
 {
-	u32 max = 0xffff >> (16 - bit_precision);
-
-	val = clamp_val(val, 0, max);
-
-	if (bit_precision < 16)
-		val <<= 16 - bit_precision;
-
-	return val;
+	if (bit_precision > 16)
+		return DIV_ROUND_CLOSEST_ULL(mul_u32_u32(val, (1 << 16) - 1),
+					     (1 << bit_precision) - 1);
+	else
+		return DIV_ROUND_CLOSEST(val * ((1 << 16) - 1),
+					 (1 << bit_precision) - 1);
 }
 
 static u32 i9xx_lut_8(const struct drm_color_lut *color)
@@ -574,7 +572,7 @@ static void i965_lut_10p6_pack(struct drm_color_lut *entry, u32 ldw, u32 udw)
 static u16 i965_lut_11p6_max_pack(u32 val)
 {
 	/* PIPEGCMAX is 11.6, clamp to 10.6 */
-	return clamp_val(val, 0, 0xffff);
+	return min(val, 0xffffu);
 }
 
 static u32 ilk_lut_10(const struct drm_color_lut *color)
@@ -1121,6 +1119,29 @@ static int glk_degamma_lut_size(struct drm_i915_private *i915)
 		return 35;
 }
 
+static u32 glk_degamma_lut(const struct drm_color_lut *color)
+{
+	return color->green;
+}
+
+static void glk_degamma_lut_pack(struct drm_color_lut *entry, u32 val)
+{
+	/* PRE_CSC_GAMC_DATA is 3.16, clamp to 0.16 */
+	entry->red = entry->green = entry->blue = min(val, 0xffffu);
+}
+
+static u32 mtl_degamma_lut(const struct drm_color_lut *color)
+{
+	return drm_color_lut_extract(color->green, 24);
+}
+
+static void mtl_degamma_lut_pack(struct drm_color_lut *entry, u32 val)
+{
+	/* PRE_CSC_GAMC_DATA is 3.24, clamp to 0.16 */
+	entry->red = entry->green = entry->blue =
+		intel_color_lut_pack(min(val, 0xffffffu), 24);
+}
+
 static void glk_load_degamma_lut(const struct intel_crtc_state *crtc_state,
 				 const struct drm_property_blob *blob)
 {
@@ -1156,12 +1177,15 @@ static void glk_load_degamma_lut(const struct intel_crtc_state *crtc_state,
 		 * as compared to just 16 to achieve this.
 		 */
 		ilk_lut_write(crtc_state, PRE_CSC_GAMC_DATA(pipe),
-			      lut[i].green);
+			      DISPLAY_VER(i915) >= 14 ?
+			      mtl_degamma_lut(&lut[i]) : glk_degamma_lut(&lut[i]));
 	}
 
 	/* Clamp values > 1.0. */
 	while (i++ < glk_degamma_lut_size(i915))
-		ilk_lut_write(crtc_state, PRE_CSC_GAMC_DATA(pipe), 1 << 16);
+		ilk_lut_write(crtc_state, PRE_CSC_GAMC_DATA(pipe),
+			      DISPLAY_VER(i915) >= 14 ?
+			      1 << 24 : 1 << 16);
 
 	ilk_lut_write(crtc_state, PRE_CSC_GAMC_INDEX(pipe), 0);
 }
@@ -3027,9 +3051,10 @@ static struct drm_property_blob *glk_read_degamma_lut(struct intel_crtc *crtc)
 	for (i = 0; i < lut_size; i++) {
 		u32 val = intel_de_read_fw(dev_priv, PRE_CSC_GAMC_DATA(pipe));
 
-		lut[i].red = val;
-		lut[i].green = val;
-		lut[i].blue = val;
+		if (DISPLAY_VER(dev_priv) >= 14)
+			mtl_degamma_lut_pack(&lut[i], val);
+		else
+			glk_degamma_lut_pack(&lut[i], val);
 	}
 
 	intel_de_write_fw(dev_priv, PRE_CSC_GAMC_INDEX(pipe),

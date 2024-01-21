@@ -128,7 +128,7 @@ static void gen11_rc6_enable(struct intel_rc6 *rc6)
 	 * temporary wa and should be removed after fixing real cause
 	 * of forcewake timeouts.
 	 */
-	if (IS_METEORLAKE(gt->i915))
+	if (IS_GFX_GT_IP_RANGE(gt, IP_VER(12, 70), IP_VER(12, 71)))
 		pg_enable =
 			GEN9_MEDIA_PG_ENABLE |
 			GEN11_MEDIA_SAMPLER_PG_ENABLE;
@@ -529,11 +529,26 @@ static bool rc6_supported(struct intel_rc6 *rc6)
 		return false;
 	}
 
-	if (IS_MTL_MEDIA_STEP(gt->i915, STEP_A0, STEP_B0) &&
-	    gt->type == GT_MEDIA) {
+	if (IS_MEDIA_GT_IP_STEP(gt, IP_VER(13, 0), STEP_A0, STEP_B0)) {
 		drm_notice(&i915->drm,
 			   "Media RC6 disabled on A step\n");
 		return false;
+	}
+
+	/*
+	 * The temporary WA to prevent system hang is to stop doing
+	 * software RC6 control, which manually force GT entering
+	 * and exiting from RC6. Noted that HW RC6 is still enabled
+	 * by default.
+	 *
+	 * TODO: enable software RC6 contorl after a fix is found.
+	 */
+	if (DISPLAY_VER(i915) == 11) {
+		if (IS_JSL_EHL(i915)) {
+			drm_notice(&i915->drm,
+			   "WA: Software RC6 disabled for Jasperlake/Elkhartlake platforms\n");
+			return false;
+		}
 	}
 
 	return true;
