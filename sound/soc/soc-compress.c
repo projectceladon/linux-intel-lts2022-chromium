@@ -140,6 +140,7 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 	int ret;
 
 	snd_soc_card_mutex_lock(fe->card);
+	fe->dpcm[stream].runtime = fe_substream->runtime;
 
 	ret = dpcm_path_get(fe, stream, &list);
 	if (ret < 0)
@@ -230,6 +231,8 @@ static int soc_compr_free_fe(struct snd_compr_stream *cstream)
 	dpcm_be_disconnect(fe, stream);
 
 	snd_soc_dpcm_mutex_unlock(fe);
+
+	fe->dpcm[stream].runtime = NULL;
 
 	snd_soc_link_compr_shutdown(cstream, 0);
 

@@ -12685,6 +12685,10 @@ static int cfg80211_cqm_rssi_update(struct cfg80211_registered_device *rdev,
 	int i, n, low_index;
 	int err;
 
+	/* RSSI reporting disabled? */
+	if (!wdev->cqm_config)
+		return rdev_set_cqm_rssi_range_config(rdev, dev, 0, 0);
+
 	/*
 	 * Obtain current RSSI value if possible, if not and no RSSI threshold
 	 * event has been received yet, we should receive an event after a
@@ -12763,8 +12767,6 @@ static int nl80211_set_cqm_rssi(struct genl_info *info,
 		n_thresholds = 0;
 
 	wdev_lock(wdev);
-	old = rcu_dereference_protected(wdev->cqm_config,
-					lockdep_is_held(&wdev->mtx));
 
 	/* if already disabled just succeed */
 	if (!n_thresholds && !old)
@@ -12796,8 +12798,6 @@ static int nl80211_set_cqm_rssi(struct genl_info *info,
 		memcpy(cqm_config->rssi_thresholds, thresholds,
 		       flex_array_size(cqm_config, rssi_thresholds,
 				       n_thresholds));
-		cqm_config->use_range_api = n_thresholds > 1 ||
-					    !rdev->ops->set_cqm_rssi_config;
 
 		rcu_assign_pointer(wdev->cqm_config, cqm_config);
 
@@ -18084,7 +18084,7 @@ void nl80211_send_roamed(struct cfg80211_registered_device *rdev,
 }
 
 void nl80211_send_port_authorized(struct cfg80211_registered_device *rdev,
-				  struct net_device *netdev, const u8 *bssid,
+				  struct net_device *netdev, const u8 *peer_addr,
 				  const u8 *td_bitmap, u8 td_bitmap_len)
 {
 	struct sk_buff *msg;
@@ -18102,7 +18102,7 @@ void nl80211_send_port_authorized(struct cfg80211_registered_device *rdev,
 
 	if (nla_put_u32(msg, NL80211_ATTR_WIPHY, rdev->wiphy_idx) ||
 	    nla_put_u32(msg, NL80211_ATTR_IFINDEX, netdev->ifindex) ||
-	    nla_put(msg, NL80211_ATTR_MAC, ETH_ALEN, bssid))
+	    nla_put(msg, NL80211_ATTR_MAC, ETH_ALEN, peer_addr))
 		goto nla_put_failure;
 
 	if ((td_bitmap_len > 0) && td_bitmap)
