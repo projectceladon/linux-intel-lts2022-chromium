@@ -149,7 +149,7 @@ static int dapm_down_seq[] = {
 
 static void dapm_assert_locked(struct snd_soc_dapm_context *dapm)
 {
-	if (snd_soc_card_is_instantiated(dapm->card))
+	if (dapm->card && dapm->card->instantiated)
 		snd_soc_dapm_mutex_assert_held(dapm);
 }
 

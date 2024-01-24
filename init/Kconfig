@@ -155,7 +155,8 @@ config COMPILE_TEST
 
 config WERROR
 	bool "Compile the kernel with warnings as errors"
-	default y
+	depends on !COMPILE_TEST || ARM64 || X86 || ARM
+	default COMPILE_TEST
 	help
 	  A kernel build should not cause any compiler warnings, and this
 	  enables the '-Werror' (for C) and '-Dwarnings' (for Rust) flags
@@ -364,15 +365,6 @@ config DEFAULT_HOSTNAME
 	  calls sethostname(2). The kernel traditionally uses "(none)" here,
 	  but you may wish to use a different default here to make a minimal
 	  system more usable with less configuration.
-
-config DISK_BASED_SWAP
-	bool "Allow disk-based swap files in Chromium OS kernels"
-	depends on SWAP
-	default n
-	help
-	  By default, the Chromium OS kernel allows swapping only to
-	  zram devices. This option allows you to use disk and disk-based files
-	  as swap devices too.  If unsure say N.
 
 config SYSVIPC
 	bool "System V IPC"
