@@ -2717,6 +2717,7 @@ next:
 			return error;
 
 		error = memory_bm_create(&zero_bm, GFP_RESUME, PG_ANY);
+		error = memory_bm_create(&zero_bm, GFP_ATOMIC, PG_ANY);
 		if (error)
 			return error;
 
