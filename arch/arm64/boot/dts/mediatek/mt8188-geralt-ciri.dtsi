@@ -66,6 +66,11 @@
 	status = "okay";
 };
 
+&mipi_tx_config0 {
+	status = "okay";
+	drive-strength-microamp = <5200>;
+};
+
 &i2c2 {
 	status = "disabled";
 };
