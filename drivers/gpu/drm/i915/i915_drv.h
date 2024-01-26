@@ -815,7 +815,7 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 
 #define HAS_LRR(i915)                  (DISPLAY_VER(i915) >= 12)
 
-#define HAS_REGION(i915, i) (RUNTIME_INFO(i915)->memory_regions & (i))
+#define HAS_REGION(i915, i) (INTEL_INFO(i915)->memory_regions & (i))
 #define HAS_LMEM(i915) HAS_REGION(i915, REGION_LMEM)
 
 #define HAS_EXTRA_GT_LIST(i915)   (INTEL_INFO(i915)->extra_gt_list)
