@@ -9,10 +9,10 @@
 #include <drm/drm_fourcc.h>
 
 #include "i915_drv.h"
-#include "i915_irq.h"
 #include "i915_reg.h"
 #include "intel_atomic_plane.h"
 #include "intel_de.h"
+#include "intel_display_irq.h"
 #include "intel_display_types.h"
 #include "intel_fb.h"
 #include "intel_fbc.h"
@@ -2017,7 +2017,7 @@ static enum intel_fbc_id skl_fbc_id_for_pipe(enum pipe pipe)
 static bool skl_plane_has_fbc(struct drm_i915_private *dev_priv,
 			      enum intel_fbc_id fbc_id, enum plane_id plane_id)
 {
-	if ((RUNTIME_INFO(dev_priv)->fbc_mask & BIT(fbc_id)) == 0)
+	if ((DISPLAY_RUNTIME_INFO(dev_priv)->fbc_mask & BIT(fbc_id)) == 0)
 		return false;
 
 	return plane_id == PLANE_PRIMARY;
@@ -2602,6 +2602,7 @@ skl_get_initial_plane_config(struct intel_crtc *crtc,
 	plane_config->base = base;
 
 	offset = intel_de_read(dev_priv, PLANE_OFFSET(pipe, plane_id));
+	drm_WARN_ON(&dev_priv->drm, offset != 0);
 
 	val = intel_de_read(dev_priv, PLANE_SIZE(pipe, plane_id));
 	fb->height = REG_FIELD_GET(PLANE_HEIGHT_MASK, val) + 1;
