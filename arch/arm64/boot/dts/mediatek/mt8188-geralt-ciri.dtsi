@@ -71,6 +71,12 @@
 	drive-strength-microamp = <5200>;
 };
 
+&mt6359_vm18_ldo_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-microvolt-offset = <100000>;
+	regulator-max-microvolt = <1900000>;
+};
+
 &i2c2 {
 	status = "disabled";
 };
