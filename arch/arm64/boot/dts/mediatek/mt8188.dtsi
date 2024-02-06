@@ -3030,7 +3030,7 @@
 		};
 
 		padding0: padding@1c11d000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c11d000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING0>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3039,7 +3039,7 @@
 		};
 
 		padding1: padding@1c11e000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c11e000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING1>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3048,7 +3048,7 @@
 		};
 
 		padding2: padding@1c11f000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c11f000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING2>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3057,7 +3057,7 @@
 		};
 
 		padding3: padding@1c120000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c120000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING3>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3066,7 +3066,7 @@
 		};
 
 		padding4: padding@1c121000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c121000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING4>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3075,7 +3075,7 @@
 		};
 
 		padding5: padding@1c122000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c122000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING5>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3084,7 +3084,7 @@
 		};
 
 		padding6: padding@1c123000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c123000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING6>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
@@ -3093,7 +3093,7 @@
 		};
 
 		padding7: padding@1c124000 {
-			compatible = "mediatek,mt8188-padding";
+			compatible = "mediatek,mt8188-disp-padding";
 			reg = <0 0x1c124000 0 0x1000>;
 			clocks = <&vdosys1 CLK_VDO1_PADDING7>;
 			power-domains = <&spm MT8188_POWER_DOMAIN_VDOSYS1>;
