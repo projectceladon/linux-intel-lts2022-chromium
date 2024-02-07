@@ -3801,8 +3801,6 @@ struct drm_i915_gem_create_ext_protected_content {
 	__u32 flags;
 };
 
-#include "i915_drm_downstream.h"
-
 /**
  * struct drm_i915_gem_create_ext_set_pat - The
  * I915_GEM_CREATE_EXT_SET_PAT extension.
