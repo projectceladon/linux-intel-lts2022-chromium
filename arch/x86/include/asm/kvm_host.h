@@ -2261,11 +2261,11 @@ static inline void kvm_arch_vcpu_set_sched_attr(struct kvm_vcpu_arch *arch,
 {
 	u8 boost_type = KVM_PVSCHED_BOOST_TASKPRIO;
 
-	if (attr.pad == arch->pv_sched.attr.pad)
-		return;
-
 	arch->pv_sched.attr = attr;
 	arch->pv_sched.normal_prio = __sched_normal_prio(attr);
+
+	if (attr.pad == arch->pv_sched.attr.pad)
+		return;
 
 	if (attr.kern_cs)
 		boost_type = KVM_PVSCHED_BOOST_KERNCS;

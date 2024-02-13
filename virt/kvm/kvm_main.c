@@ -4059,7 +4059,8 @@ void kvm_vcpu_boost(struct kvm_vcpu *vcpu, enum kerncs_boost_type boost_type)
 		.kern_cs = boost_type
 	};
 
-	kvm_vcpu_set_sched(vcpu, attr);
+	if (kvm_vcpu_sched_enabled(vcpu))
+		kvm_vcpu_set_sched(vcpu, attr);
 }
 EXPORT_SYMBOL_GPL(kvm_vcpu_boost);
 #endif
