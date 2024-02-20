@@ -5811,6 +5811,7 @@ intel_dp_detect(struct drm_connector *connector,
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	struct intel_encoder *encoder = &dig_port->base;
 	enum drm_connector_status status;
+	int ret;
 
 	drm_dbg_kms(&dev_priv->drm, "[CONNECTOR:%d:%s]\n",
 		    connector->base.id, connector->name);
@@ -5837,8 +5838,17 @@ intel_dp_detect(struct drm_connector *connector,
 
 		intel_dp_mst_disconnect(intel_dp);
 
+		intel_dp_tunnel_disconnect(intel_dp);
+
 		goto out;
 	}
+
+	ret = intel_dp_tunnel_detect(intel_dp, ctx);
+	if (ret == -EDEADLK)
+		return ret;
+
+	if (ret == 1)
+		intel_connector->base.epoch_counter++;
 
 	intel_dp_detect_dsc_caps(intel_dp, intel_connector);
 
@@ -5871,8 +5881,6 @@ intel_dp_detect(struct drm_connector *connector,
 	 * with an IRQ_HPD, so force a link status check.
 	 */
 	if (!intel_dp_is_edp(intel_dp)) {
-		int ret;
-
 		ret = intel_dp_retrain_link(encoder, ctx);
 		if (ret)
 			return ret;
@@ -6037,6 +6045,8 @@ void intel_dp_encoder_flush_work(struct drm_encoder *encoder)
 	struct intel_dp *intel_dp = &dig_port->dp;
 
 	intel_dp_mst_encoder_cleanup(dig_port);
+
+	intel_dp_tunnel_destroy(intel_dp);
 
 	intel_pps_vdd_off_sync(intel_dp);
 
