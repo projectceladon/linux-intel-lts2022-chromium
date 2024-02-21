@@ -628,6 +628,16 @@
 	pcie1v8-supply = <&mt6359_vcn18_ldo_reg>;
 	dsc-reset-gpios = <&pio 145 1>;
 	status = "okay";
+
+	pcie@0,0 {
+		#address-cells = <3>;
+		#size-cells = <2>;
+		reg = <0x0000 0 0 0 0>;
+		wifi: pcie@1,0 {
+			reg = <0x0000 0 0 0 0>;
+			wakeup-source;
+		};
+	};
 };
 
 &pciephy {
