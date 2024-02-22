@@ -629,6 +629,15 @@ static u32 intel_psr1_get_tp_time(struct intel_dp *intel_dp)
 	else
 		val |= EDP_PSR_TP2_TP3_TIME_2500us;
 
+	/*
+	 * WA 0479: hsw,bdw
+	 * "Do not skip both TP1 and TP2/TP3"
+	 */
+	if (DISPLAY_VER(dev_priv) < 9 &&
+	    connector->panel.vbt.psr.tp1_wakeup_time_us == 0 &&
+	    connector->panel.vbt.psr.tp2_tp3_wakeup_time_us == 0)
+		val |= EDP_PSR_TP2_TP3_TIME_100us;
+
 check_tp3_sel:
 	if (intel_dp_source_supports_tps3(dev_priv) &&
 	    drm_dp_tps3_supported(intel_dp->dpcd))
@@ -666,7 +675,9 @@ static void hsw_activate_psr1(struct intel_dp *intel_dp)
 
 	val |= EDP_PSR_IDLE_FRAMES(psr_compute_idle_frames(intel_dp));
 
-	val |= EDP_PSR_MAX_SLEEP_TIME(max_sleep_time);
+	if (DISPLAY_VER(dev_priv) < 20)
+		val |= EDP_PSR_MAX_SLEEP_TIME(max_sleep_time);
+
 	if (IS_HASWELL(dev_priv))
 		val |= EDP_PSR_MIN_LINK_ENTRY_TIME_8_LINES;
 
@@ -798,8 +809,10 @@ transcoder_has_psr2(struct drm_i915_private *dev_priv, enum transcoder cpu_trans
 		return cpu_transcoder == TRANSCODER_A || cpu_transcoder == TRANSCODER_B;
 	else if (DISPLAY_VER(dev_priv) >= 12)
 		return cpu_transcoder == TRANSCODER_A;
-	else
+	else if (DISPLAY_VER(dev_priv) >= 9)
 		return cpu_transcoder == TRANSCODER_EDP;
+	else
+		return false;
 }
 
 static u32 intel_get_frame_time_us(const struct intel_crtc_state *cstate)
@@ -1388,12 +1401,32 @@ static void intel_psr_enable_source(struct intel_dp *intel_dp,
 	 * can rely on frontbuffer tracking.
 	 */
 	mask = EDP_PSR_DEBUG_MASK_MEMUP |
-	       EDP_PSR_DEBUG_MASK_HPD |
-	       EDP_PSR_DEBUG_MASK_LPSP |
-	       EDP_PSR_DEBUG_MASK_MAX_SLEEP;
+	       EDP_PSR_DEBUG_MASK_HPD;
 
-	if (DISPLAY_VER(dev_priv) < 11)
+	/*
+	 * For some unknown reason on HSW non-ULT (or at least on
+	 * Dell Latitude E6540) external displays start to flicker
+	 * when PSR is enabled on the eDP. SR/PC6 residency is much
+	 * higher than should be possible with an external display.
+	 * As a workaround leave LPSP unmasked to prevent PSR entry
+	 * when external displays are active.
+	 */
+	if (DISPLAY_VER(dev_priv) >= 8 || IS_HASWELL_ULT(dev_priv))
+		mask |= EDP_PSR_DEBUG_MASK_LPSP;
+
+	if (DISPLAY_VER(dev_priv) < 20)
+		mask |= EDP_PSR_DEBUG_MASK_MAX_SLEEP;
+
+	/*
+	 * No separate pipe reg write mask on hsw/bdw, so have to unmask all
+	 * registers in order to keep the CURSURFLIVE tricks working :(
+	 */
+	if (IS_DISPLAY_VER(dev_priv, 9, 10))
 		mask |= EDP_PSR_DEBUG_MASK_DISP_REG_WRITE;
+
+	/* allow PSR with sprite enabled */
+	if (IS_HASWELL(dev_priv))
+		mask |= EDP_PSR_DEBUG_MASK_SPRITE_ENABLE;
 
 	intel_de_write(dev_priv, psr_debug_reg(dev_priv, cpu_transcoder), mask);
 

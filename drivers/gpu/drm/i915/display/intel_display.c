@@ -53,7 +53,6 @@
 #include "i915_utils.h"
 #include "i9xx_plane.h"
 #include "i9xx_wm.h"
-#include "icl_dsi.h"
 #include "intel_atomic.h"
 #include "intel_atomic_plane.h"
 #include "intel_audio.h"
@@ -3202,6 +3201,10 @@ static void bdw_set_pipe_misc(const struct intel_crtc_state *crtc_state)
 
 	if (DISPLAY_VER(dev_priv) >= 12)
 		val |= PIPE_MISC_PIXEL_ROUNDING_TRUNC;
+
+	/* allow PSR with sprite enabled */
+	if (IS_BROADWELL(dev_priv))
+		val |= PIPE_MISC_PSR_MASK_SPRITE_ENABLE;
 
 	intel_de_write(dev_priv, PIPE_MISC(crtc->pipe), val);
 }
@@ -7394,7 +7397,11 @@ static void intel_atomic_commit_tail(struct intel_atomic_state *state)
 		 */
 		intel_uncore_arm_unclaimed_mmio_detection(&dev_priv->uncore);
 	}
-	intel_display_power_put(dev_priv, POWER_DOMAIN_DC_OFF, wakeref);
+	/*
+	 * Delay re-enabling DC states by 17 ms to avoid the off->on->off
+	 * toggling overhead at and above 60 FPS.
+	 */
+	intel_display_power_put_async_delay(dev_priv, POWER_DOMAIN_DC_OFF, wakeref, 17);
 	intel_runtime_pm_put(&dev_priv->runtime_pm, state->wakeref);
 
 	/*
@@ -7655,18 +7662,10 @@ void intel_setup_outputs(struct drm_i915_private *dev_priv)
 		return;
 
 	if (HAS_DDI(dev_priv)) {
-		enum port port;
-
 		if (intel_ddi_crt_present(dev_priv))
 			intel_crt_init(dev_priv);
 
-		for_each_port_masked(port, DISPLAY_RUNTIME_INFO(dev_priv)->port_mask)
-			intel_ddi_init(dev_priv, port);
-
-		/* FIXME do something about DSI */
-		if (IS_ALDERLAKE_P(dev_priv) || IS_TIGERLAKE(dev_priv) ||
-		    DISPLAY_VER(dev_priv) == 11)
-			icl_dsi_init(dev_priv);
+		intel_bios_for_each_encoder(dev_priv, intel_ddi_init);
 
 		if (IS_GEMINILAKE(dev_priv) || IS_BROXTON(dev_priv))
 			vlv_dsi_init(dev_priv);
