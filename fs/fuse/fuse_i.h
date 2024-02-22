@@ -69,43 +69,18 @@ struct fuse_forget_link {
 	struct fuse_forget_link *next;
 };
 
-/** FUSE specific dentry data */
-#if BITS_PER_LONG < 64 || defined(CONFIG_FUSE_BPF)
-struct fuse_dentry {
-	union {
-		u64 time;
-		struct rcu_head rcu;
-	};
+/* Submount lookup tracking */
+struct fuse_submount_lookup {
+	/** Refcount */
+	refcount_t count;
 
-#ifdef CONFIG_FUSE_BPF
-	struct path backing_path;
+	/** Unique ID, which identifies the inode between userspace
+	 * and kernel */
+	u64 nodeid;
 
-	/* bpf program *only* set for negative dentries */
-	struct bpf_prog *bpf;
-#endif
+	/** The request used for sending the FORGET message */
+	struct fuse_forget_link *forget;
 };
-
-static inline struct fuse_dentry *get_fuse_dentry(const struct dentry *entry)
-{
-	return entry->d_fsdata;
-}
-#endif
-
-#ifdef CONFIG_FUSE_BPF
-static inline void get_fuse_backing_path(const struct dentry *d,
-					  struct path *path)
-{
-	struct fuse_dentry *di = get_fuse_dentry(d);
-
-	if (!di) {
-		*path = (struct path) {};
-		return;
-	}
-
-	*path = di->backing_path;
-	path_get(path);
-}
-#endif
 
 /** FUSE inode */
 struct fuse_inode {
@@ -213,6 +188,8 @@ struct fuse_inode {
 	 */
 	struct fuse_inode_dax *dax;
 #endif
+	/** Submount specific lookup tracking */
+	struct fuse_submount_lookup *submount_lookup;
 };
 
 /** FUSE inode state bits */

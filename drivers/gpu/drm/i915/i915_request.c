@@ -287,7 +287,7 @@ static enum hrtimer_restart __rq_watchdog_expired(struct hrtimer *hrtimer)
 
 	if (!i915_request_completed(rq)) {
 		if (llist_add(&rq->watchdog.link, &gt->watchdog.list))
-			schedule_work(&gt->watchdog.work);
+			queue_work(gt->i915->unordered_wq, &gt->watchdog.work);
 	} else {
 		i915_request_put(rq);
 	}
@@ -1350,7 +1350,7 @@ __i915_request_await_external(struct i915_request *rq, struct dma_fence *fence)
 {
 	mark_external(rq);
 	return i915_sw_fence_await_dma_fence(&rq->submit, fence,
-					     i915_fence_context_timeout(rq->engine->i915,
+					     i915_fence_context_timeout(rq->i915,
 									fence->context),
 					     I915_FENCE_GFP);
 }

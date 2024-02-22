@@ -17,6 +17,7 @@
 #include <drm/drm_modeset_lock.h>
 
 #include "intel_cdclk.h"
+#include "intel_display_device.h"
 #include "intel_display_limits.h"
 #include "intel_display_power.h"
 #include "intel_dpll_mgr.h"
@@ -30,7 +31,7 @@ struct drm_i915_private;
 struct drm_property;
 struct drm_property_blob;
 struct i915_audio_component;
-struct i915_hdcp_comp_master;
+struct i915_hdcp_arbiter;
 struct intel_atomic_state;
 struct intel_audio_funcs;
 struct intel_bios_encoder_data;
@@ -406,7 +407,7 @@ struct intel_display {
 	} gmbus;
 
 	struct {
-		struct i915_hdcp_master *master;
+		struct i915_hdcp_arbiter *arbiter;
 		bool comp_added;
 
 		/*
@@ -415,8 +416,8 @@ struct intel_display {
 		 * this is only populated post Meteorlake
 		 */
 		struct intel_hdcp_gsc_message *hdcp_message;
-		/* Mutex to protect the above hdcp component related values. */
-		struct mutex comp_mutex;
+		/* Mutex to protect the above hdcp related values. */
+		struct mutex hdcp_mutex;
 	} hdcp;
 
 	struct {
@@ -428,6 +429,14 @@ struct intel_display {
 		 */
 		u32 state;
 	} hti;
+
+	struct {
+		/* Access with DISPLAY_INFO() */
+		const struct intel_display_device_info *__device_info;
+
+		/* Access with DISPLAY_RUNTIME_INFO() */
+		struct intel_display_runtime_info __runtime_info;
+	} info;
 
 	struct {
 		bool false_color;
