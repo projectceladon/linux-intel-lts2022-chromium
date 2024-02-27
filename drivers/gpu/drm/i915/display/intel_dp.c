@@ -4079,8 +4079,17 @@ intel_dp_mst_detect(struct intel_dp *intel_dp)
 static void
 intel_dp_mst_configure(struct intel_dp *intel_dp)
 {
+	struct drm_i915_private *i915 = dp_to_i915(intel_dp);
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+
 	if (!intel_dp_mst_source_support(intel_dp))
 		return;
+
+	if (drm_dp_has_quirk(&intel_dp->desc, DP_DPCD_QUIRK_ENABLE_MST)) {
+		drm_dbg_kms(&i915->drm,	"[ENCODER:%d:%s] Source will enable MST with particular monitor.\n",
+			    encoder->base.base.id, encoder->base.name);
+		intel_dp->mst_detect = DRM_DP_SST_SIDEBAND_MSG;
+	}
 
 	intel_dp->is_mst = intel_dp->mst_detect != DRM_DP_SST;
 
