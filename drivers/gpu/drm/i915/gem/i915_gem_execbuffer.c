@@ -736,7 +736,6 @@ static int eb_reserve(struct i915_execbuffer *eb)
 	struct eb_vma *ev;
 	unsigned int pass;
 	int err = 0;
-	bool unpinned;
 
 	/*
 	 * We have one more buffers that we couldn't bind, which could be due to
@@ -776,7 +775,7 @@ static int eb_reserve(struct i915_execbuffer *eb)
 			pin_flags |= PIN_NONBLOCK;
 
 		if (pass >= 1)
-			unpinned = eb_unbind(eb, pass >= 2);
+			eb_unbind(eb, pass >= 2);
 
 		if (pass == 2) {
 			err = mutex_lock_interruptible(&eb->context->vm->mutex);
@@ -2230,8 +2229,8 @@ static int i915_reset_gen7_sol_offsets(struct i915_request *rq)
 	u32 *cs;
 	int i;
 
-	if (GRAPHICS_VER(rq->engine->i915) != 7 || rq->engine->id != RCS0) {
-		drm_dbg(&rq->engine->i915->drm, "sol reset is gen7/rcs only\n");
+	if (GRAPHICS_VER(rq->i915) != 7 || rq->engine->id != RCS0) {
+		drm_dbg(&rq->i915->drm, "sol reset is gen7/rcs only\n");
 		return -EINVAL;
 	}
 

@@ -253,12 +253,14 @@
 			compatible = "cache";
 			cache-level = <2>;
 			next-level-cache = <&l3_0>;
+			cache-unified;
 		};
 
 		l2_1: l2-cache1 {
 			compatible = "cache";
 			cache-level = <2>;
 			next-level-cache = <&l3_0>;
+			cache-unified;
 		};
 
 		l3_0: l3-cache {
@@ -1526,6 +1528,10 @@
 			gpu_volt_bin: volt-bin {
 				reg = <0x59C 0x4>;
 				bits = <0 3>;
+			};
+
+			socinfo-data1@7a0 {
+				reg = <0x7a0 0x4>;
 			};
 		};
 

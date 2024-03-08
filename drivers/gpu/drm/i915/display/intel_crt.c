@@ -42,12 +42,15 @@
 #include "intel_ddi.h"
 #include "intel_ddi_buf_trans.h"
 #include "intel_de.h"
+#include "intel_display_driver.h"
 #include "intel_display_types.h"
 #include "intel_fdi.h"
 #include "intel_fdi_regs.h"
 #include "intel_fifo_underrun.h"
 #include "intel_gmbus.h"
 #include "intel_hotplug.h"
+#include "intel_hotplug_irq.h"
+#include "intel_load_detect.h"
 #include "intel_pch_display.h"
 #include "intel_pch_refclk.h"
 
@@ -346,7 +349,12 @@ intel_crt_mode_valid(struct drm_connector *connector,
 	struct drm_device *dev = connector->dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	int max_dotclk = dev_priv->max_dotclk_freq;
+	enum drm_mode_status status;
 	int max_clock;
+
+	status = intel_cpu_transcoder_mode_valid(dev_priv, mode);
+	if (status != MODE_OK)
+		return status;
 
 	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return MODE_NO_DBLESCAN;
@@ -394,6 +402,7 @@ static int intel_crt_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
+	pipe_config->sink_format = INTEL_OUTPUT_FORMAT_RGB;
 	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	return 0;
@@ -410,6 +419,9 @@ static int pch_crt_compute_config(struct intel_encoder *encoder,
 		return -EINVAL;
 
 	pipe_config->has_pch_encoder = true;
+	if (!intel_fdi_compute_pipe_bpp(pipe_config))
+		return -EINVAL;
+
 	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	return 0;
@@ -432,10 +444,14 @@ static int hsw_crt_compute_config(struct intel_encoder *encoder,
 		return -EINVAL;
 
 	pipe_config->has_pch_encoder = true;
+	if (!intel_fdi_compute_pipe_bpp(pipe_config))
+		return -EINVAL;
+
 	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	/* LPT FDI RX only supports 8bpc. */
 	if (HAS_PCH_LPT(dev_priv)) {
+		/* TODO: Check crtc_state->max_link_bpp_x16 instead of bw_constrained */
 		if (pipe_config->bw_constrained && pipe_config->pipe_bpp < 24) {
 			drm_dbg_kms(&dev_priv->drm,
 				    "LPT only supports 24bpp\n");
@@ -606,37 +622,38 @@ static bool intel_crt_detect_hotplug(struct drm_connector *connector)
 	return ret;
 }
 
-static struct edid *intel_crt_get_edid(struct drm_connector *connector,
-				struct i2c_adapter *i2c)
+static const struct drm_edid *intel_crt_get_edid(struct drm_connector *connector,
+						 struct i2c_adapter *i2c)
 {
-	struct edid *edid;
+	const struct drm_edid *drm_edid;
 
-	edid = drm_get_edid(connector, i2c);
+	drm_edid = drm_edid_read_ddc(connector, i2c);
 
-	if (!edid && !intel_gmbus_is_forced_bit(i2c)) {
+	if (!drm_edid && !intel_gmbus_is_forced_bit(i2c)) {
 		drm_dbg_kms(connector->dev,
 			    "CRT GMBUS EDID read failed, retry using GPIO bit-banging\n");
 		intel_gmbus_force_bit(i2c, true);
-		edid = drm_get_edid(connector, i2c);
+		drm_edid = drm_edid_read_ddc(connector, i2c);
 		intel_gmbus_force_bit(i2c, false);
 	}
 
-	return edid;
+	return drm_edid;
 }
 
 /* local version of intel_ddc_get_modes() to use intel_crt_get_edid() */
 static int intel_crt_ddc_get_modes(struct drm_connector *connector,
 				struct i2c_adapter *adapter)
 {
-	struct edid *edid;
+	const struct drm_edid *drm_edid;
 	int ret;
 
-	edid = intel_crt_get_edid(connector, adapter);
-	if (!edid)
+	drm_edid = intel_crt_get_edid(connector, adapter);
+	if (!drm_edid)
 		return 0;
 
-	ret = intel_connector_update_modes(connector, edid);
-	kfree(edid);
+	ret = intel_connector_update_modes(connector, drm_edid);
+
+	drm_edid_free(drm_edid);
 
 	return ret;
 }
@@ -645,14 +662,15 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 {
 	struct intel_crt *crt = intel_attached_crt(to_intel_connector(connector));
 	struct drm_i915_private *dev_priv = to_i915(crt->base.base.dev);
-	struct edid *edid;
+	const struct drm_edid *drm_edid;
 	struct i2c_adapter *i2c;
 	bool ret = false;
 
 	i2c = intel_gmbus_get_adapter(dev_priv, dev_priv->display.vbt.crt_ddc_pin);
-	edid = intel_crt_get_edid(connector, i2c);
+	drm_edid = intel_crt_get_edid(connector, i2c);
 
-	if (edid) {
+	if (drm_edid) {
+		const struct edid *edid = drm_edid_raw(drm_edid);
 		bool is_digital = edid->input & DRM_EDID_INPUT_DIGITAL;
 
 		/*
@@ -673,7 +691,7 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 			    "CRT not detected via DDC:0x50 [no valid EDID found]\n");
 	}
 
-	kfree(edid);
+	drm_edid_free(drm_edid);
 
 	return ret;
 }
@@ -821,18 +839,21 @@ intel_crt_detect(struct drm_connector *connector,
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	struct intel_crt *crt = intel_attached_crt(to_intel_connector(connector));
 	struct intel_encoder *intel_encoder = &crt->base;
+	struct drm_atomic_state *state;
 	intel_wakeref_t wakeref;
-	int status, ret;
-	struct intel_load_detect_pipe tmp;
+	int status;
 
 	drm_dbg_kms(&dev_priv->drm, "[CONNECTOR:%d:%s] force=%d\n",
 		    connector->base.id, connector->name,
 		    force);
 
-	if (!INTEL_DISPLAY_ENABLED(dev_priv))
+	if (!intel_display_device_enabled(dev_priv))
 		return connector_status_disconnected;
 
-	if (dev_priv->params.load_detect_test) {
+	if (!intel_display_driver_check_access(dev_priv))
+		return connector->status;
+
+	if (dev_priv->display.params.load_detect_test) {
 		wakeref = intel_display_power_get(dev_priv,
 						  intel_encoder->power_domain);
 		goto load_detect;
@@ -881,22 +902,22 @@ load_detect:
 	}
 
 	/* for pre-945g platforms use load detect */
-	ret = intel_get_load_detect_pipe(connector, &tmp, ctx);
-	if (ret > 0) {
+	state = intel_load_detect_get_pipe(connector, ctx);
+	if (IS_ERR(state)) {
+		status = PTR_ERR(state);
+	} else if (!state) {
+		status = connector_status_unknown;
+	} else {
 		if (intel_crt_detect_ddc(connector))
 			status = connector_status_connected;
 		else if (DISPLAY_VER(dev_priv) < 4)
 			status = intel_crt_load_detect(crt,
 				to_intel_crtc(connector->state->crtc)->pipe);
-		else if (dev_priv->params.load_detect_test)
+		else if (dev_priv->display.params.load_detect_test)
 			status = connector_status_disconnected;
 		else
 			status = connector_status_unknown;
-		intel_release_load_detect_pipe(connector, &tmp, ctx);
-	} else if (ret == 0) {
-		status = connector_status_unknown;
-	} else {
-		status = ret;
+		intel_load_detect_release_pipe(connector, state, ctx);
 	}
 
 out:
@@ -1057,8 +1078,11 @@ void intel_crt_init(struct drm_i915_private *dev_priv)
 	} else {
 		intel_connector->polled = DRM_CONNECTOR_POLL_CONNECT;
 	}
+	intel_connector->base.polled = intel_connector->polled;
 
 	if (HAS_DDI(dev_priv)) {
+		assert_port_valid(dev_priv, PORT_E);
+
 		crt->base.port = PORT_E;
 		crt->base.get_config = hsw_crt_get_config;
 		crt->base.get_hw_state = intel_ddi_get_hw_state;

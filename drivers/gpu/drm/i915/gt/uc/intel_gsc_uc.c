@@ -62,8 +62,18 @@ static void gsc_work(struct work_struct *work)
 		}
 
 		ret = intel_gsc_proxy_request_handler(gsc);
-		if (ret)
+		if (ret) {
+			if (actions & GSC_ACTION_FW_LOAD) {
+				/*
+				 * A proxy failure right after firmware load means the proxy-init
+				 * step has failed so mark GSC as not usable after this
+				 */
+				drm_err(&gt->i915->drm,
+					"GSC proxy handler failed to init\n");
+				intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_LOAD_FAIL);
+			}
 			goto out_put;
+		}
 
 		/* mark the GSC FW init as done the first time we run this */
 		if (actions & GSC_ACTION_FW_LOAD) {
@@ -78,6 +88,7 @@ static void gsc_work(struct work_struct *work)
 			} else {
 				drm_err(&gt->i915->drm,
 					"GSC status reports proxy init not complete\n");
+				intel_uc_fw_change_status(&gsc->fw, INTEL_UC_FIRMWARE_LOAD_FAIL);
 			}
 		}
 	}
@@ -99,7 +110,7 @@ static bool gsc_engine_supported(struct intel_gt *gt)
 	GEM_BUG_ON(!gt_is_root(gt) && !gt->info.engine_mask);
 
 	if (gt_is_root(gt))
-		mask = RUNTIME_INFO(gt->i915)->platform_engine_mask;
+		mask = INTEL_INFO(gt->i915)->platform_engine_mask;
 	else
 		mask = gt->info.engine_mask;
 

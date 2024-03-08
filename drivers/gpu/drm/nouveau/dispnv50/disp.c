@@ -39,6 +39,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_fb_helper.h>
+#include <drm/drm_fixed.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
@@ -64,6 +65,7 @@
 #include "nouveau_connector.h"
 #include "nouveau_encoder.h"
 #include "nouveau_fence.h"
+#include "nv50_display.h"
 
 #include <subdev/bios/dp.h>
 
@@ -909,15 +911,19 @@ nv50_msto_prepare(struct drm_atomic_state *state,
 	struct nouveau_drm *drm = nouveau_drm(msto->encoder.dev);
 	struct nv50_mstc *mstc = msto->mstc;
 	struct nv50_mstm *mstm = mstc->mstm;
-	struct drm_dp_mst_atomic_payload *payload;
+	struct drm_dp_mst_topology_state *old_mst_state;
+	struct drm_dp_mst_atomic_payload *payload, *old_payload;
 
 	NV_ATOMIC(drm, "%s: msto prepare\n", msto->encoder.name);
 
+	old_mst_state = drm_atomic_get_old_mst_topology_state(state, mgr);
+
 	payload = drm_atomic_get_mst_payload_state(mst_state, mstc->port);
+	old_payload = drm_atomic_get_mst_payload_state(old_mst_state, mstc->port);
 
 	// TODO: Figure out if we want to do a better job of handling VCPI allocation failures here?
 	if (msto->disabled) {
-		drm_dp_remove_payload(mgr, mst_state, payload, payload);
+		drm_dp_remove_payload(mgr, mst_state, old_payload, payload);
 
 		nvif_outp_dp_mst_vcpi(&mstm->outp->outp, msto->head->base.index, 0, 0, 0, 0);
 	} else {
@@ -926,7 +932,8 @@ nv50_msto_prepare(struct drm_atomic_state *state,
 
 		nvif_outp_dp_mst_vcpi(&mstm->outp->outp, msto->head->base.index,
 				      payload->vc_start_slot, payload->time_slots,
-				      payload->pbn, payload->time_slots * mst_state->pbn_div);
+				      payload->pbn,
+				      payload->time_slots * dfixed_trunc(mst_state->pbn_div));
 	}
 }
 
@@ -961,15 +968,14 @@ nv50_msto_atomic_check(struct drm_encoder *encoder,
 		const int clock = crtc_state->adjusted_mode.clock;
 
 		asyh->or.bpc = connector->display_info.bpc;
-		asyh->dp.pbn = drm_dp_calc_pbn_mode(clock, asyh->or.bpc * 3,
-						    false);
+		asyh->dp.pbn = drm_dp_calc_pbn_mode(clock, asyh->or.bpc * 3 << 4);
 	}
 
 	mst_state = drm_atomic_get_mst_topology_state(state, &mstm->mgr);
 	if (IS_ERR(mst_state))
 		return PTR_ERR(mst_state);
 
-	if (!mst_state->pbn_div) {
+	if (!mst_state->pbn_div.full) {
 		struct nouveau_encoder *outp = mstc->mstm->outp;
 
 		mst_state->pbn_div = drm_dp_get_vc_payload_bw(&mstm->mgr,
@@ -1123,7 +1129,7 @@ nv50_mstc_mode_valid(struct drm_connector *connector,
 	 * MSTB's max possible PBN
 	 */
 
-	return nv50_dp_mode_valid(connector, outp, mode, NULL);
+	return nv50_dp_mode_valid(outp, mode, NULL);
 }
 
 static int
@@ -1872,6 +1878,8 @@ nv50_pior_destroy(struct drm_encoder *encoder)
 	nvif_outp_dtor(&nv_encoder->outp);
 
 	drm_encoder_cleanup(encoder);
+
+	mutex_destroy(&nv_encoder->dp.hpd_irq_lock);
 	kfree(encoder);
 }
 
@@ -1915,6 +1923,8 @@ nv50_pior_create(struct drm_connector *connector, struct dcb_output *dcbe)
 	nv_encoder->dcb = dcbe;
 	nv_encoder->i2c = ddc;
 	nv_encoder->aux = aux;
+
+	mutex_init(&nv_encoder->dp.hpd_irq_lock);
 
 	encoder = to_drm_encoder(nv_encoder);
 	encoder->possible_crtcs = dcbe->heads;
@@ -2301,7 +2311,7 @@ nv50_disp_atomic_commit(struct drm_device *dev,
 
 err_cleanup:
 	if (ret)
-		drm_atomic_helper_cleanup_planes(dev, state);
+		drm_atomic_helper_unprepare_planes(dev, state);
 done:
 	pm_runtime_put_autosuspend(dev->dev);
 	return ret;

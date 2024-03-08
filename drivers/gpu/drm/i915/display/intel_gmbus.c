@@ -778,7 +778,7 @@ int intel_gmbus_output_aksv(struct i2c_adapter *adapter)
 	struct intel_gmbus *bus = to_intel_gmbus(adapter);
 	struct drm_i915_private *i915 = bus->i915;
 	u8 cmd = DRM_HDCP_DDC_AKSV;
-	u8 buf[DRM_HDCP_KSV_LEN] = { 0 };
+	u8 buf[DRM_HDCP_KSV_LEN] = {};
 	struct i2c_msg msgs[] = {
 		{
 			.addr = DRM_HDCP_DDC_ADDR,
@@ -990,4 +990,9 @@ void intel_gmbus_teardown(struct drm_i915_private *i915)
 		kfree(bus);
 		i915->display.gmbus.bus[pin] = NULL;
 	}
+}
+
+void intel_gmbus_irq_handler(struct drm_i915_private *i915)
+{
+	wake_up_all(&i915->display.gmbus.wait_queue);
 }
