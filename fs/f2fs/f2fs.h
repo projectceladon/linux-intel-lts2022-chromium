@@ -1404,7 +1404,6 @@ enum {
 	PAGE_PRIVATE_MAX
 };
 
-
 /* For compression */
 enum compress_algorithm_type {
 	COMPRESS_LZO,
