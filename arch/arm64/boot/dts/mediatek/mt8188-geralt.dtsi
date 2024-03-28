@@ -417,7 +417,7 @@
 		status = "okay";
 	};
 
-	max98390_rr: max98390@38 {
+	max98390_38: max98390@38 {
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x38>;
@@ -428,7 +428,7 @@
 		status = "okay";
 	};
 
-	max98390_rl: max98390@39 {
+	max98390_39: max98390@39 {
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x39>;
@@ -436,7 +436,7 @@
 		status = "okay";
 	};
 
-	max98390_fr: max98390@3A {
+	max98390_3a: max98390@3a {
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x3A>;
@@ -444,7 +444,7 @@
 		status = "okay";
 	};
 
-	max98390_fl: max98390@3B {
+	max98390_3b: max98390@3b {
 		#sound-dai-cells = <0>;
 		compatible = "maxim,max98390";
 		reg = <0x3B>;
@@ -1343,10 +1343,10 @@
 		dai-format = "dsp_b";
 		mediatek,clk-provider = "cpu";
 		codec {
-			sound-dai = <&max98390_rr>,
-				    <&max98390_rl>,
-				    <&max98390_fr>,
-				    <&max98390_fl>;
+			sound-dai = <&max98390_38>,
+				    <&max98390_39>,
+				    <&max98390_3a>,
+				    <&max98390_3b>;
 		};
 	};
 
