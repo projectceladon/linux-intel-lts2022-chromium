@@ -166,6 +166,10 @@
 		vin-supply = <&pp3300_mipi>;
 	};
 
+	/*
+	 * The reserved memory space address and size MUST be in line with the
+	 * EMI PMU configuration in the firmware.
+	 */
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
