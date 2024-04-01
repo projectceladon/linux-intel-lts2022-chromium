@@ -849,7 +849,7 @@ static int mtk_apu_hw_logger_seq_show(struct seq_file *s, void *v)
 		seq_write(s, hw_logger_data->local_log_buf + pSData->r_ptr, HWLOG_LINE_MAX_LENS);
 	} else {
 		if (prevIsBinary)
-			seq_putc(s, "\n");
+			seq_putc(s, '\n');
 		prevIsBinary = 0;
 		/*
 		 * force null-terminated
