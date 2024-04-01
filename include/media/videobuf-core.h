@@ -141,7 +141,7 @@ struct videobuf_queue {
 	unsigned int               msize;
 	enum v4l2_field            field;
 	enum v4l2_field            last;   /* for field=V4L2_FIELD_ALTERNATE */
-	struct videobuf_buffer     *bufs[VIDEO_MAX_FRAME];
+	struct videobuf_buffer     *bufs[64];
 	const struct videobuf_queue_ops  *ops;
 	struct videobuf_qtype_ops  *int_ops;
 

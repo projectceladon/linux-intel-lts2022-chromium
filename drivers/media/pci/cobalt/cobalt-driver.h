@@ -190,7 +190,7 @@ struct sg_dma_desc_info {
 #define COBALT_MAX_FRAMESZ \
 	(COBALT_MAX_WIDTH * COBALT_MAX_HEIGHT * COBALT_MAX_BPP)
 
-#define NR_BUFS					VIDEO_MAX_FRAME
+#define NR_BUFS					64
 
 #define COBALT_STREAM_FL_DMA_IRQ		0
 #define COBALT_STREAM_FL_ADV_IRQ		1
