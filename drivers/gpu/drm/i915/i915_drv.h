@@ -176,6 +176,10 @@ struct i915_gem_mm {
 	/* shrinker accounting, also useful for userland debugging */
 	u64 shrink_memory;
 	u32 shrink_count;
+
+#if IS_ENABLED(CONFIG_DRM_I915_MEMTRACK)
+	size_t phys_mem_total;
+#endif
 };
 
 struct i915_virtual_gpu {
@@ -243,6 +247,10 @@ struct drm_i915_private {
 
 	bool preserve_bios_swizzle;
 
+#if IS_ENABLED(CONFIG_DRM_I915_MEMTRACK)
+	struct kobject memtrack_kobj;
+	bool mmtkobj_initialized;
+#endif
 	unsigned int fsb_freq, mem_freq, is_ddr3;
 	unsigned int skl_preferred_vco_freq;
 
@@ -804,5 +812,18 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 
 #define HAS_LMEMBAR_SMEM_STOLEN(i915) (!HAS_LMEM(i915) && \
 				       GRAPHICS_VER_FULL(i915) >= IP_VER(12, 70))
+
+#if IS_ENABLED(CONFIG_DRM_I915_MEMTRACK)
+int i915_get_pid_cmdline(struct task_struct *task, char *buffer);
+int i915_gem_obj_insert_pid(struct drm_i915_gem_object *obj);
+void i915_gem_obj_remove_all_pids(struct drm_i915_gem_object *obj);
+int i915_obj_insert_virt_addr(struct drm_i915_gem_object *obj,
+			      unsigned long addr, bool is_map_gtt,
+			      bool is_mutex_locked);
+int i915_get_drm_clients_info(struct drm_i915_error_state_buf *m,
+			      struct drm_device *dev);
+int i915_gem_get_obj_info(struct drm_i915_error_state_buf *m,
+			  struct drm_device *dev, struct pid *tgid);
+#endif
 
 #endif
