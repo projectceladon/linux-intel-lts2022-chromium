@@ -556,6 +556,9 @@ struct drm_i915_gem_object {
 	 *   critical, i.e userspace is free to race against itself.
 	 */
 	unsigned int cache_dirty:1;
+#if IS_ENABLED(CONFIG_DRM_I915_MEMTRACK)
+	unsigned int has_backing_pages : 1;
+#endif
 
 	/* @is_dpt: Object houses a display page table (DPT) */
 	unsigned int is_dpt:1;
@@ -730,6 +733,9 @@ struct drm_i915_gem_object {
 
 		void *gvt_info;
 	};
+#if IS_ENABLED(CONFIG_DRM_I915_MEMTRACK)
+	struct list_head pid_info;
+#endif
 };
 
 #define intel_bo_to_drm_bo(bo) (&(bo)->base)
