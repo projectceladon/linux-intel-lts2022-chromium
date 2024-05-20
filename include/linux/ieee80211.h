@@ -4779,7 +4779,7 @@ static inline bool ieee80211_mle_basic_sta_prof_size_ok(const u8 *data,
 	}
 
 	return prof->sta_info_len >= info_len &&
-	       fixed + prof->sta_info_len <= len;
+	       fixed + prof->sta_info_len - 1 <= len;
 }
 
 #define for_each_mle_subelement(_elem, _data, _len)			\
