@@ -439,7 +439,7 @@ static int gma_remove_conflicting_framebuffers(struct pci_dev *pdev,
 	const char *name = req_driver->name;
 	int ret;
 
-	ret = aperture_remove_conflicting_devices(base, size, name);
+	ret = aperture_remove_conflicting_devices(base, size, false, name);
 	if (ret)
 		return ret;
 
