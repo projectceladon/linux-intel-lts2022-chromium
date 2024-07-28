@@ -1015,8 +1015,20 @@ repeat:
 				EROFS_I(inode)->z_fragmentoff + fpos);
 		if (err)
 			goto out;
+<<<<<<< HEAD
 		tight = false;
 		goto next_part;
+=======
+		}
+		get_page(fe->map.buf.page);
+		WRITE_ONCE(fe->pcl->compressed_bvecs[0].page,
+			   fe->map.buf.page);
+		fe->pcl->pageofs_in = map->m_pa & ~PAGE_MASK;
+		fe->mode = Z_EROFS_PCLUSTER_FOLLOWED_NOINPLACE;
+	} else {
+		/* bind cache first when cached decompression is preferred */
+		z_erofs_bind_cache(fe, pagepool);
+>>>>>>> chromium_v6.1.84/v6.1.84
 	}
 
 	if (!fe->pcl) {

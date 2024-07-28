@@ -40,6 +40,7 @@
 #include "ioapic.h"
 #include "trace.h"
 #include "x86.h"
+#include "xen.h"
 #include "cpuid.h"
 #include "hyperv.h"
 
@@ -338,8 +339,10 @@ static inline void apic_set_spiv(struct kvm_lapic *apic, u32 val)
 	}
 
 	/* Check if there are APF page ready requests pending */
-	if (enabled)
+	if (enabled) {
 		kvm_make_request(KVM_REQ_APF_READY, apic->vcpu);
+		kvm_xen_sw_enable_lapic(apic->vcpu);
+	}
 }
 
 static inline void kvm_apic_set_xapic_id(struct kvm_lapic *apic, u8 id)
@@ -1166,19 +1169,19 @@ static int __apic_accept_irq(struct kvm_lapic *apic, int delivery_mode,
 		result = 1;
 		vcpu->arch.pv.pv_unhalted = 1;
 		kvm_make_request(KVM_REQ_EVENT, vcpu);
-		kvm_vcpu_kick(vcpu);
+		kvm_vcpu_kick_boost(vcpu);
 		break;
 
 	case APIC_DM_SMI:
 		result = 1;
 		kvm_make_request(KVM_REQ_SMI, vcpu);
-		kvm_vcpu_kick(vcpu);
+		kvm_vcpu_kick_boost(vcpu);
 		break;
 
 	case APIC_DM_NMI:
 		result = 1;
 		kvm_inject_nmi(vcpu);
-		kvm_vcpu_kick(vcpu);
+		kvm_vcpu_kick_boost(vcpu);
 		break;
 
 	case APIC_DM_INIT:
@@ -1753,7 +1756,7 @@ static void apic_timer_expired(struct kvm_lapic *apic, bool from_timer_fn)
 	atomic_inc(&apic->lapic_timer.pending);
 	kvm_make_request(KVM_REQ_UNBLOCK, vcpu);
 	if (from_timer_fn)
-		kvm_vcpu_kick(vcpu);
+		kvm_vcpu_kick_boost(vcpu);
 }
 
 static void start_sw_tscdeadline(struct kvm_lapic *apic)

@@ -12,6 +12,7 @@
 #include "intel_de.h"
 #include "intel_display.h"
 #include "intel_display_device.h"
+#include "intel_display_params.h"
 #include "intel_display_power.h"
 #include "intel_display_reg_defs.h"
 #include "intel_fbc.h"
@@ -394,6 +395,8 @@ static const struct intel_display_device_info hsw_display = {
 	.has_dp_mst = 1,
 	.has_fpga_dbg = 1,
 	.has_hotplug = 1,
+	.has_psr = 1,
+	.has_psr_hw_tracking = 1,
 	HSW_PIPE_OFFSETS,
 	IVB_CURSOR_OFFSETS,
 	IVB_COLORS,
@@ -412,6 +415,8 @@ static const struct intel_display_device_info bdw_display = {
 	.has_dp_mst = 1,
 	.has_fpga_dbg = 1,
 	.has_hotplug = 1,
+	.has_psr = 1,
+	.has_psr_hw_tracking = 1,
 	HSW_PIPE_OFFSETS,
 	IVB_CURSOR_OFFSETS,
 	IVB_COLORS,
@@ -809,6 +814,15 @@ probe_gmdid_display(struct drm_i915_private *i915, u16 *ver, u16 *rel, u16 *step
 	u32 val;
 	int i;
 
+	/* The caller expects to ver, rel and step to be initialized
+	 * here, and there's no good way to check when there was a
+	 * failure and no_display was returned.  So initialize all these
+	 * values here zero, to be sure.
+	 */
+	*ver = 0;
+	*rel = 0;
+	*step = 0;
+
 	addr = pci_iomap_range(pdev, 0, i915_mmio_reg_offset(GMD_ID_DISPLAY), sizeof(u32));
 	if (!addr) {
 		drm_err(&i915->drm, "Cannot map MMIO BAR to read display GMD_ID\n");
@@ -818,9 +832,10 @@ probe_gmdid_display(struct drm_i915_private *i915, u16 *ver, u16 *rel, u16 *step
 	val = ioread32(addr);
 	pci_iounmap(pdev, addr);
 
-	if (val == 0)
-		/* Platform doesn't have display */
+	if (val == 0) {
+		drm_dbg_kms(&i915->drm, "Device doesn't have display\n");
 		return &no_display;
+	}
 
 	*ver = REG_FIELD_GET(GMD_ID_ARCH_MASK, val);
 	*rel = REG_FIELD_GET(GMD_ID_RELEASE_MASK, val);
@@ -836,15 +851,11 @@ probe_gmdid_display(struct drm_i915_private *i915, u16 *ver, u16 *rel, u16 *step
 	return &no_display;
 }
 
-const struct intel_display_device_info *
-intel_display_device_probe(struct drm_i915_private *i915, bool has_gmdid,
-			   u16 *gmdid_ver, u16 *gmdid_rel, u16 *gmdid_step)
+static const struct intel_display_device_info *
+probe_display(struct drm_i915_private *i915)
 {
 	struct pci_dev *pdev = to_pci_dev(i915->drm.dev);
 	int i;
-
-	if (has_gmdid)
-		return probe_gmdid_display(i915, gmdid_ver, gmdid_rel, gmdid_step);
 
 	if (has_no_display(pdev)) {
 		drm_dbg_kms(&i915->drm, "Device doesn't have display\n");
@@ -862,7 +873,37 @@ intel_display_device_probe(struct drm_i915_private *i915, bool has_gmdid,
 	return &no_display;
 }
 
-void intel_display_device_info_runtime_init(struct drm_i915_private *i915)
+void intel_display_device_probe(struct drm_i915_private *i915)
+{
+	const struct intel_display_device_info *info;
+	u16 ver, rel, step;
+
+	if (HAS_GMD_ID(i915))
+		info = probe_gmdid_display(i915, &ver, &rel, &step);
+	else
+		info = probe_display(i915);
+
+	i915->display.info.__device_info = info;
+
+	memcpy(DISPLAY_RUNTIME_INFO(i915),
+	       &DISPLAY_INFO(i915)->__runtime_defaults,
+	       sizeof(*DISPLAY_RUNTIME_INFO(i915)));
+
+	if (HAS_GMD_ID(i915)) {
+		DISPLAY_RUNTIME_INFO(i915)->ip.ver = ver;
+		DISPLAY_RUNTIME_INFO(i915)->ip.rel = rel;
+		DISPLAY_RUNTIME_INFO(i915)->ip.step = step;
+	}
+
+	intel_display_params_copy(&i915->display.params);
+}
+
+void intel_display_device_remove(struct drm_i915_private *i915)
+{
+	intel_display_params_free(&i915->display.params);
+}
+
+static void __intel_display_device_info_runtime_init(struct drm_i915_private *i915)
 {
 	struct intel_display_runtime_info *display_runtime = DISPLAY_RUNTIME_INFO(i915);
 	enum pipe pipe;
@@ -870,6 +911,13 @@ void intel_display_device_info_runtime_init(struct drm_i915_private *i915)
 	BUILD_BUG_ON(BITS_PER_TYPE(display_runtime->pipe_mask) < I915_MAX_PIPES);
 	BUILD_BUG_ON(BITS_PER_TYPE(display_runtime->cpu_transcoder_mask) < I915_MAX_TRANSCODERS);
 	BUILD_BUG_ON(BITS_PER_TYPE(display_runtime->port_mask) < I915_MAX_PORTS);
+
+	/* This covers both ULT and ULX */
+	if (IS_HASWELL_ULT(i915) || IS_BROADWELL_ULT(i915))
+		display_runtime->port_mask &= ~BIT(PORT_D);
+
+	if (IS_ICL_WITH_PORT_F(i915))
+		display_runtime->port_mask |= BIT(PORT_F);
 
 	/* Wa_14011765242: adl-s A0,A1 */
 	if (IS_ALDERLAKE_S(i915) && IS_DISPLAY_STEP(i915, STEP_A0, STEP_A2))
@@ -980,8 +1028,9 @@ void intel_display_device_info_runtime_init(struct drm_i915_private *i915)
 		if (DISPLAY_VER(i915) >= 11 && (dfsm & ICL_DFSM_DMC_DISABLE))
 			display_runtime->has_dmc = 0;
 
-		if (IS_DISPLAY_VER(i915, 10, 12) &&
-		    (dfsm & GLK_DFSM_DISPLAY_DSC_DISABLE))
+		if ((IS_DISPLAY_VER(i915, 10, 12) &&
+		     (dfsm & GLK_DFSM_DISPLAY_DSC_DISABLE)) ||
+		    DISPLAY_VER(i915) > 13)
 			display_runtime->has_dsc = 0;
 	}
 
@@ -989,6 +1038,23 @@ void intel_display_device_info_runtime_init(struct drm_i915_private *i915)
 
 display_fused_off:
 	memset(display_runtime, 0, sizeof(*display_runtime));
+}
+
+void intel_display_device_info_runtime_init(struct drm_i915_private *i915)
+{
+	if (HAS_DISPLAY(i915))
+		__intel_display_device_info_runtime_init(i915);
+
+	/* Display may have been disabled by runtime init */
+	if (!HAS_DISPLAY(i915)) {
+		i915->drm.driver_features &= ~(DRIVER_MODESET | DRIVER_ATOMIC);
+		i915->display.info.__device_info = &no_display;
+	}
+
+	/* Disable nuclear pageflip by default on pre-g4x */
+	if (!i915->display.params.nuclear_pageflip &&
+	    DISPLAY_VER(i915) < 5 && !IS_G4X(i915))
+		i915->drm.driver_features &= ~DRIVER_ATOMIC;
 }
 
 void intel_display_device_info_print(const struct intel_display_device_info *info,
@@ -1010,4 +1076,22 @@ void intel_display_device_info_print(const struct intel_display_device_info *inf
 	drm_printf(p, "has_hdcp: %s\n", str_yes_no(runtime->has_hdcp));
 	drm_printf(p, "has_dmc: %s\n", str_yes_no(runtime->has_dmc));
 	drm_printf(p, "has_dsc: %s\n", str_yes_no(runtime->has_dsc));
+}
+
+/*
+ * Assuming the device has display hardware, should it be enabled?
+ *
+ * It's an error to call this function if the device does not have display
+ * hardware.
+ *
+ * Disabling display means taking over the display hardware, putting it to
+ * sleep, and preventing connectors from being connected via any means.
+ */
+bool intel_display_device_enabled(struct drm_i915_private *i915)
+{
+	/* Only valid when HAS_DISPLAY() is true */
+	drm_WARN_ON(&i915->drm, !HAS_DISPLAY(i915));
+
+	return !i915->display.params.disable_display &&
+		!intel_opregion_headless_sku(i915);
 }

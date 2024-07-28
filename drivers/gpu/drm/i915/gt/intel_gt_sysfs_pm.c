@@ -729,8 +729,10 @@ rps_up_threshold_pct_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 
 static struct kobj_attribute rps_up_threshold_pct =
-__ATTR(rps_up_threshold_pct, 0664,
-       rps_up_threshold_pct_show, rps_up_threshold_pct_store);
+	__ATTR(rps_up_threshold_pct,
+	       0664,
+	       rps_up_threshold_pct_show,
+	       rps_up_threshold_pct_store);
 
 static ssize_t
 rps_down_threshold_pct_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -761,8 +763,10 @@ rps_down_threshold_pct_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 
 static struct kobj_attribute rps_down_threshold_pct =
-__ATTR(rps_down_threshold_pct, 0664,
-       rps_down_threshold_pct_show, rps_down_threshold_pct_store);
+	__ATTR(rps_down_threshold_pct,
+	       0664,
+	       rps_down_threshold_pct_show,
+	       rps_down_threshold_pct_store);
 
 static const struct attribute * const gen6_gt_rps_attrs[] = {
 	&rps_up_threshold_pct.attr,
