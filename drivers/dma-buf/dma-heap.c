@@ -7,17 +7,16 @@
  */
 
 #include <linux/cdev.h>
-#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/dma-buf.h>
-#include <linux/err.h>
-#include <linux/xarray.h>
-#include <linux/list.h>
-#include <linux/slab.h>
-#include <linux/nospec.h>
-#include <linux/uaccess.h>
-#include <linux/syscalls.h>
 #include <linux/dma-heap.h>
+#include <linux/err.h>
+#include <linux/kref.h>
+#include <linux/list.h>
+#include <linux/nospec.h>
+#include <linux/syscalls.h>
+#include <linux/uaccess.h>
+#include <linux/xarray.h>
 #include <uapi/linux/dma-heap.h>
 
 #define DEVNAME "dma_heap"
@@ -28,9 +27,11 @@
  * struct dma_heap - represents a dmabuf heap in the system
  * @name:		used for debugging/device-node name
  * @ops:		ops struct for this heap
- * @heap_devt		heap device node
- * @list		list head connecting to list of heaps
- * @heap_cdev		heap char device
+ * @priv:		private data for this heap
+ * @heap_devt:		heap device node
+ * @list:		list head connecting to list of heaps
+ * @heap_cdev:		heap char device
+ * @refcount:		reference counter for this heap device
  * @heap_dev		heap device struct
  *
  * Represents a heap of memory from which buffers can be made.
@@ -51,24 +52,6 @@ static DEFINE_MUTEX(heap_list_lock);
 static dev_t dma_heap_devt;
 static struct class *dma_heap_class;
 static DEFINE_XARRAY_ALLOC(dma_heap_minors);
-
-struct dma_heap *dma_heap_find(const char *name)
-{
-	struct dma_heap *h;
-
-	mutex_lock(&heap_list_lock);
-	list_for_each_entry(h, &heap_list, list) {
-		if (!strcmp(h->name, name)) {
-			kref_get(&h->refcount);
-			mutex_unlock(&heap_list_lock);
-			return h;
-		}
-	}
-	mutex_unlock(&heap_list_lock);
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(dma_heap_find);
-
 
 void dma_heap_buffer_free(struct dma_buf *dmabuf)
 {
@@ -230,44 +213,17 @@ static const struct file_operations dma_heap_fops = {
 };
 
 /**
- * dma_heap_get_drvdata() - get per-subdriver data for the heap
+ * dma_heap_get_drvdata - get per-heap driver data
  * @heap: DMA-Heap to retrieve private data for
  *
  * Returns:
- * The per-subdriver data for the heap.
+ * The per-heap data for the heap.
  */
 void *dma_heap_get_drvdata(struct dma_heap *heap)
 {
 	return heap->priv;
 }
 EXPORT_SYMBOL_GPL(dma_heap_get_drvdata);
-
-static void dma_heap_release(struct kref *ref)
-{
-	struct dma_heap *heap = container_of(ref, struct dma_heap, refcount);
-	int minor = MINOR(heap->heap_devt);
-
-	/* Note, we already holding the heap_list_lock here */
-	list_del(&heap->list);
-
-	device_destroy(dma_heap_class, heap->heap_devt);
-	cdev_del(&heap->heap_cdev);
-	xa_erase(&dma_heap_minors, minor);
-
-	kfree(heap);
-}
-
-void dma_heap_put(struct dma_heap *h)
-{
-	/*
-	 * Take the heap_list_lock now to avoid racing with code
-	 * scanning the list and then taking a kref.
-	 */
-	mutex_lock(&heap_list_lock);
-	kref_put(&h->refcount, dma_heap_release);
-	mutex_unlock(&heap_list_lock);
-}
-EXPORT_SYMBOL_GPL(dma_heap_put);
 
 /**
  * dma_heap_get_dev() - get device struct for the heap
@@ -283,8 +239,8 @@ struct device *dma_heap_get_dev(struct dma_heap *heap)
 EXPORT_SYMBOL_GPL(dma_heap_get_dev);
 
 /**
- * dma_heap_get_name() - get heap name
- * @heap: DMA-Heap to retrieve private data for
+ * dma_heap_get_name - get heap name
+ * @heap: DMA-Heap to retrieve the name of
  *
  * Returns:
  * The char* for the heap name.
@@ -295,6 +251,10 @@ const char *dma_heap_get_name(struct dma_heap *heap)
 }
 EXPORT_SYMBOL_GPL(dma_heap_get_name);
 
+/**
+ * dma_heap_add - adds a heap to dmabuf heaps
+ * @exp_info: information needed to register this heap
+ */
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 {
 	struct dma_heap *heap, *h, *err_ret;
@@ -384,6 +344,62 @@ err0:
 	return err_ret;
 }
 EXPORT_SYMBOL_GPL(dma_heap_add);
+
+/**
+ * dma_heap_find - get the heap registered with the specified name
+ * @name: Name of the DMA-Heap to find
+ *
+ * Returns:
+ * The DMA-Heap with the provided name.
+ *
+ * NOTE: DMA-Heaps returned from this function MUST be released using
+ * dma_heap_put() when the user is done to enable the heap to be unloaded.
+ */
+struct dma_heap *dma_heap_find(const char *name)
+{
+	struct dma_heap *h;
+
+	mutex_lock(&heap_list_lock);
+	list_for_each_entry(h, &heap_list, list) {
+		if (!kref_get_unless_zero(&h->refcount))
+			continue;
+
+		if (!strcmp(h->name, name)) {
+			mutex_unlock(&heap_list_lock);
+			return h;
+		}
+		dma_heap_put(h);
+	}
+	mutex_unlock(&heap_list_lock);
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(dma_heap_find);
+
+static void dma_heap_release(struct kref *ref)
+{
+	struct dma_heap *heap = container_of(ref, struct dma_heap, refcount);
+	unsigned int minor = MINOR(heap->heap_devt);
+
+	mutex_lock(&heap_list_lock);
+	list_del(&heap->list);
+	mutex_unlock(&heap_list_lock);
+
+	device_destroy(dma_heap_class, heap->heap_devt);
+	cdev_del(&heap->heap_cdev);
+	xa_erase(&dma_heap_minors, minor);
+
+	kfree(heap);
+}
+
+/**
+ * dma_heap_put - drops a reference to a dmabuf heap, potentially freeing it
+ * @heap: DMA-Heap whose reference count to decrement
+ */
+void dma_heap_put(struct dma_heap *heap)
+{
+	kref_put(&heap->refcount, dma_heap_release);
+}
+EXPORT_SYMBOL_GPL(dma_heap_put);
 
 static char *dma_heap_devnode(struct device *dev, umode_t *mode)
 {

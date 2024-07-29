@@ -517,6 +517,8 @@ static const struct usb_device_id blacklist_table[] = {
 	/* Realtek 8852BE Bluetooth devices */
 	{ USB_DEVICE(0x0cb8, 0xc559), .driver_info = BTUSB_REALTEK |
 						     BTUSB_WIDEBAND_SPEECH },
+	{ USB_DEVICE(0x0bda, 0x4853), .driver_info = BTUSB_REALTEK |
+						     BTUSB_WIDEBAND_SPEECH },
 	{ USB_DEVICE(0x0bda, 0x887b), .driver_info = BTUSB_REALTEK |
 						     BTUSB_WIDEBAND_SPEECH },
 	{ USB_DEVICE(0x0bda, 0xb85b), .driver_info = BTUSB_REALTEK |
@@ -4666,7 +4668,9 @@ static int btusb_suspend(struct usb_interface *intf, pm_message_t message)
 		    device_can_wakeup(&data->udev->dev))
 			data->udev->do_remote_wakeup = 1;
 		else if (!PMSG_IS_AUTO(message) &&
-			 !device_may_wakeup(&data->udev->dev)) {
+			 (!device_may_wakeup(&data->udev->dev) ||
+			  test_bit(HCI_QUIRK_DISABLE_REMOTE_WAKE,
+				   &data->hdev->quirks))) {
 			data->udev->do_remote_wakeup = 0;
 			data->udev->reset_resume = 1;
 		}

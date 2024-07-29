@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright 2023 Google LLC
+ *
+ * Panel ID: 0x11 (Boe-tv110wum-ll0)
+ * Unprovisioned SKU: 0x7FFFFF00UL | 0x11
+ */
+/dts-v1/;
+#include "mt8188-geralt-ciri.dtsi"
+#include "mt8188-ciri-camera-v4l2.dtsi"
+
+/ {
+	model = "Google Ciri sku0/unprovisioned board";
+	compatible = "google,ciri-sku0", "google,ciri-sku2147483409",
+	 	     "google,ciri", "mediatek,mt8188";
+};

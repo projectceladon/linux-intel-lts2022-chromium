@@ -43,7 +43,34 @@
 			reg = <0 0x50000000 0 0x2900000>;
 			no-map;
 		};
+
+		apu_reserve_memory: apu-reserve-memory {
+			reg = <0 0x55000000 0 0x1400000>;
+		};
+
+		scp_dual_mem_reserved: scp-dual-mem-region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x70000000 0 0xd000000>;
+			no-map;
+		};
 	};
+};
+
+&apu_top {
+	domain-supply = <&mt6359_vmodem_buck_reg>;
+};
+
+&apuspm {
+	vsram-supply = <&mt6359_vsram_md_ldo_reg>;
+	status = "okay";
+};
+
+&apusys_hw_logger {
+	status = "okay";
+};
+
+&apusys_rv {
+	status = "okay";
 };
 
 &auxadc {
@@ -107,6 +134,14 @@
 	domain-supply = <&mt6359_vproc1_buck_reg>;
 };
 
+&iommu_apu0 {
+	status = "okay";
+};
+
+&iommu_apu1 {
+	status = "okay";
+};
+
 &mmc0 {
 	bus-width = <8>;
 	hs400-ds-delay = <0x1481b>;
@@ -146,6 +181,11 @@
 	regulator-always-on;
 };
 
+&mt6359_vmodem_buck_reg {
+	regulator-min-microvolt = <775000>;
+	regulator-max-microvolt = <775000>;
+};
+
 &mt6359_vpu_buck_reg {
 	regulator-always-on;
 };
@@ -154,8 +194,21 @@
 	regulator-always-on;
 };
 
+&mt6359_vsram_md_ldo_reg {
+	regulator-min-microvolt = <800000>;
+	regulator-max-microvolt = <800000>;
+};
+
 &mt6359_vufs_ldo_reg {
 	regulator-always-on;
+};
+
+&mtk_apu_mem_code {
+	status = "okay";
+};
+
+&mtk_apu_mem_data {
+	status = "okay";
 };
 
 &nor_flash {
@@ -375,11 +428,21 @@
 	regulator-max-microvolt = <550000>;
 };
 
-&scp {
+&scp_cluster {
+	status = "okay";
+};
+
+&scp_c0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&scp_pins>;
 	memory-region = <&scp_mem_reserved>;
 	status = "okay";
+};
+
+&scp_c1 {
+	status = "okay";
+	memory-region = <&scp_dual_mem_reserved>;
+	firmware-name = "scp-dual.img";
 };
 
 &spi0 {

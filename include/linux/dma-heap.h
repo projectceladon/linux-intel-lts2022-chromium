@@ -9,7 +9,7 @@
 #ifndef _DMA_HEAPS_H
 #define _DMA_HEAPS_H
 
-#include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/types.h>
 
 struct dma_heap;
@@ -43,13 +43,6 @@ struct dma_heap_export_info {
 	void *priv;
 };
 
-/**
- * dma_heap_get_drvdata() - get per-heap driver data
- * @heap: DMA-Heap to retrieve private data for
- *
- * Returns:
- * The per-heap data for the heap.
- */
 void *dma_heap_get_drvdata(struct dma_heap *heap);
 
 /**
@@ -70,10 +63,6 @@ struct device *dma_heap_get_dev(struct dma_heap *heap);
  */
 const char *dma_heap_get_name(struct dma_heap *heap);
 
-/**
- * dma_heap_add - adds a heap to dmabuf heaps
- * @exp_info:		information needed to register this heap
- */
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info);
 
 /**
@@ -121,4 +110,12 @@ void dma_heap_buffer_free(struct dma_buf *);
 int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
 			    unsigned int fd_flags,
 			    unsigned int heap_flags);
+#ifdef CONFIG_DMABUF_HEAPS_CMA
+/**
+ * dma_heap_add_cma - adds a device CMA heap to dmabuf heaps
+ * @dev:	device with a CMA heap to register
+ */
+int dma_heap_add_cma(struct device *dev);
+
+#endif /* CONFIG_DMABUF_HEAPS_CMA */
 #endif /* _DMA_HEAPS_H */

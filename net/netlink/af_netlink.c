@@ -168,7 +168,7 @@ static inline u32 netlink_group_mask(u32 group)
 static struct sk_buff *netlink_to_full_skb(const struct sk_buff *skb,
 					   gfp_t gfp_mask)
 {
-	unsigned int len = skb_end_offset(skb);
+	unsigned int len = skb->len;
 	struct sk_buff *new;
 
 	new = alloc_skb(len, gfp_mask);
@@ -375,7 +375,7 @@ static void netlink_skb_destructor(struct sk_buff *skb)
 	if (is_vmalloc_addr(skb->head)) {
 		if (!skb->cloned ||
 		    !atomic_dec_return(&(skb_shinfo(skb)->dataref)))
-			vfree(skb->head);
+			vfree_atomic(skb->head);
 
 		skb->head = NULL;
 	}
@@ -813,6 +813,17 @@ static int netlink_release(struct socket *sock)
 	}
 
 	sock_prot_inuse_add(sock_net(sk), &netlink_proto, -1);
+
+	/* Because struct net might disappear soon, do not keep a pointer. */
+	if (!sk->sk_net_refcnt && sock_net(sk) != &init_net) {
+		__netns_tracker_free(sock_net(sk), &sk->ns_tracker, false);
+		/* Because of deferred_put_nlk_sk and use of work queue,
+		 * it is possible  netns will be freed before this socket.
+		 */
+		sock_net_set(sk, &init_net);
+		__netns_tracker_alloc(&init_net, &sk->ns_tracker,
+				      false, GFP_KERNEL);
+	}
 	call_rcu(&nlk->rcu, deferred_put_nlk_sk);
 	return 0;
 }

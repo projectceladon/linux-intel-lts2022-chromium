@@ -29,9 +29,9 @@
 static int vde_msg_queue_get_trans_size(int width, int height)
 {
 	if (width > 1920 || height > 1088)
-		return 30 * SZ_1M;
+		return 8 * SZ_1M;
 	else
-		return 6 * SZ_1M;
+		return 5 * SZ_1M;
 }
 
 void vdec_msg_queue_init_ctx(struct vdec_msg_queue_ctx *ctx, int hardware_index)
@@ -308,8 +308,13 @@ int vdec_msg_queue_init(struct vdec_msg_queue *msg_queue,
 		msg_queue->wdma_addr.size = 0;
 		return -ENOMEM;
 	}
-	msg_queue->wdma_rptr_addr = msg_queue->wdma_addr.dma_addr;
-	msg_queue->wdma_wptr_addr = msg_queue->wdma_addr.dma_addr;
+	if (ctx->is_secure_playback) {
+		msg_queue->wdma_rptr_addr = 0;
+		msg_queue->wdma_wptr_addr = 0;
+	} else {
+		msg_queue->wdma_rptr_addr = msg_queue->wdma_addr.dma_addr;
+		msg_queue->wdma_wptr_addr = msg_queue->wdma_addr.dma_addr;
+	}
 
 	msg_queue->empty_lat_buf.ctx = ctx;
 	msg_queue->empty_lat_buf.core_decode = NULL;

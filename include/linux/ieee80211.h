@@ -4460,8 +4460,11 @@ static inline bool for_each_element_completed(const struct element *element,
 #define IEEE80211_AP_INFO_TBTT_HDR_FILTERED			0x04
 #define IEEE80211_AP_INFO_TBTT_HDR_COLOC			0x08
 #define IEEE80211_AP_INFO_TBTT_HDR_COUNT			0xF0
+#define IEEE80211_TBTT_INFO_TYPE_TBTT				0
+#define IEEE80211_TBTT_INFO_TYPE_MLD				1
 #define IEEE80211_TBTT_INFO_OFFSET_BSSID_BSS_PARAM		9
 #define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM	13
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM_MLD_PARAM	16
 
 #define IEEE80211_RNR_TBTT_PARAMS_OCT_RECOMMENDED		0x01
 #define IEEE80211_RNR_TBTT_PARAMS_SAME_SSID			0x02
@@ -4484,6 +4487,42 @@ enum ieee80211_range_params_max_total_ltf {
 	IEEE80211_RANGE_PARAMS_MAX_TOTAL_LTF_16,
 	IEEE80211_RANGE_PARAMS_MAX_TOTAL_LTF_UNSPECIFIED,
 };
+
+/*
+ * reduced neighbor report, based on Draft P802.11be_D3.0,
+ * section 9.4.2.170.2.
+ */
+struct ieee80211_rnr_mld_params {
+	u8 mld_id;
+	__le16 params;
+} __packed;
+
+#define IEEE80211_RNR_MLD_PARAMS_LINK_ID			0x000F
+#define IEEE80211_RNR_MLD_PARAMS_BSS_CHANGE_COUNT		0x0FF0
+#define IEEE80211_RNR_MLD_PARAMS_UPDATES_INCLUDED		0x1000
+#define IEEE80211_RNR_MLD_PARAMS_DISABLED_LINK			0x2000
+
+/* Format of the TBTT information element if it has 7, 8 or 9 bytes */
+struct ieee80211_tbtt_info_7_8_9 {
+	u8 tbtt_offset;
+	u8 bssid[ETH_ALEN];
+
+	/* The following element is optional, structure may not grow */
+	u8 bss_params;
+	u8 psd_20;
+} __packed;
+
+/* Format of the TBTT information element if it has >= 11 bytes */
+struct ieee80211_tbtt_info_ge_11 {
+	u8 tbtt_offset;
+	u8 bssid[ETH_ALEN];
+	__le32 short_ssid;
+
+	/* The following elements are optional, structure may grow */
+	u8 bss_params;
+	u8 psd_20;
+	struct ieee80211_rnr_mld_params mld_params;
+} __packed;
 
 /* multi-link device */
 #define IEEE80211_MLD_MAX_NUM_LINKS	15
@@ -4702,11 +4741,13 @@ struct ieee80211_mle_per_sta_profile {
 } __packed;
 
 /**
- * ieee80211_mle_sta_prof_size_ok - validate multi-link element sta profile size
+ * ieee80211_mle_basic_sta_prof_size_ok - validate basic multi-link element sta
+ *	profile size
  * @data: pointer to the sub element data
  * @len: length of the containing sub element
  */
-static inline bool ieee80211_mle_sta_prof_size_ok(const u8 *data, size_t len)
+static inline bool ieee80211_mle_basic_sta_prof_size_ok(const u8 *data,
+							size_t len)
 {
 	const struct ieee80211_mle_per_sta_profile *prof = (const void *)data;
 	u16 control;
@@ -4730,7 +4771,7 @@ static inline bool ieee80211_mle_sta_prof_size_ok(const u8 *data, size_t len)
 		info_len += 1;
 
 	if (control & IEEE80211_MLE_STA_CONTROL_COMPLETE_PROFILE &&
-	    control & IEEE80211_MLE_STA_CONTROL_NSTR_BITMAP_SIZE) {
+	    control & IEEE80211_MLE_STA_CONTROL_NSTR_LINK_PAIR_PRESENT) {
 		if (control & IEEE80211_MLE_STA_CONTROL_NSTR_BITMAP_SIZE)
 			info_len += 2;
 		else
@@ -4738,7 +4779,7 @@ static inline bool ieee80211_mle_sta_prof_size_ok(const u8 *data, size_t len)
 	}
 
 	return prof->sta_info_len >= info_len &&
-	       fixed + prof->sta_info_len <= len;
+	       fixed + prof->sta_info_len - 1 <= len;
 }
 
 #define for_each_mle_subelement(_elem, _data, _len)			\
