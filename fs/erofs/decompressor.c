@@ -434,13 +434,13 @@ int z_erofs_parse_cfgs(struct super_block *sb, struct erofs_super_block *dsb)
 			break;
 		}
 
-		if (alg >= ARRAY_SIZE(decompressors) ||
-		    !decompressors[alg].config) {
+		if (alg >= ARRAY_SIZE(erofs_decompressors) ||
+		    !erofs_decompressors[alg].config) {
 			erofs_err(sb, "algorithm %d isn't enabled on this kernel",
 				  alg);
 			ret = -EOPNOTSUPP;
 		} else {
-			ret = decompressors[alg].config(sb,
+			ret = erofs_decompressors[alg].config(sb,
 					dsb, data, size);
 		}
 
