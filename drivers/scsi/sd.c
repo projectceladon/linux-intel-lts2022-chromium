@@ -3228,24 +3228,6 @@ static bool sd_validate_opt_xfer_size(struct scsi_disk *sdkp,
 	return true;
 }
 
-static void sd_read_block_zero(struct scsi_disk *sdkp)
-{
-	unsigned int buf_len = sdkp->device->sector_size;
-	char *buffer, cmd[10] = { };
-
-	buffer = kmalloc(buf_len, GFP_KERNEL);
-	if (!buffer)
-		return;
-
-	cmd[0] = READ_10;
-	put_unaligned_be32(0, &cmd[2]); /* Logical block address 0 */
-	put_unaligned_be16(1, &cmd[7]);	/* Transfer 1 logical block */
-
-	scsi_execute_req(sdkp->device, cmd, DMA_FROM_DEVICE, buffer, buf_len,
-			 NULL, SD_TIMEOUT, sdkp->max_retries, NULL);
-	kfree(buffer);
-}
-
 /**
  *	sd_revalidate_disk - called the first time a new disk is seen,
  *	performs disk spin up, read_capacity, etc.
@@ -3285,13 +3267,7 @@ static int sd_revalidate_disk(struct gendisk *disk)
 	 */
 	if (sdkp->media_present) {
 		sd_read_capacity(sdkp, buffer);
-		/*
-		 * Some USB/UAS devices return generic values for mode pages
-		 * until the media has been accessed. Trigger a READ operation
-		 * to force the device to populate mode pages.
-		 */
-		if (sdp->read_before_ms)
-			sd_read_block_zero(sdkp);
+
 		/*
 		 * set the default to rotational.  All non-rotational devices
 		 * support the block characteristics VPD page, which will
@@ -3779,7 +3755,7 @@ static int sd_resume(struct device *dev)
 	return 0;
 }
 
-static int sd_resume_common(struct device *dev, bool runtime)
+static int sd_resume_common(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
 	int ret;
@@ -3787,11 +3763,9 @@ static int sd_resume_common(struct device *dev, bool runtime)
 	if (!sdkp)	/* E.g.: runtime resume at the start of sd_probe() */
 		return 0;
 
-	if (!sdkp->device->manage_start_stop)
-		return 0;
-
 	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 	ret = sd_start_stop_device(sdkp, 1);
+
 	if (!ret)
 		sd_resume(dev);
 
@@ -3803,7 +3777,7 @@ static int sd_resume_system(struct device *dev)
 	if (pm_runtime_suspended(dev))
 		return 0;
 
-	return sd_resume_common(dev, false);
+	return sd_resume_common(dev);
 }
 
 static int sd_resume_runtime(struct device *dev)
@@ -3830,7 +3804,7 @@ static int sd_resume_runtime(struct device *dev)
 				  "Failed to clear sense data\n");
 	}
 
-	return sd_resume_common(dev, true);
+	return sd_resume_common(dev);
 }
 
 /**
