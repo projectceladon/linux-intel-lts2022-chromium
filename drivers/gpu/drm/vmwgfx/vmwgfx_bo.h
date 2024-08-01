@@ -201,7 +201,6 @@ static inline struct vmw_bo *vmw_user_bo_ref(struct vmw_bo *vbo)
 	return vbo;
 }
 
-
 static inline void vmw_user_bo_unref(struct vmw_bo **buf)
 {
 	struct vmw_bo *tmp_buf = *buf;

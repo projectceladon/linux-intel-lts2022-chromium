@@ -316,8 +316,6 @@ static int evdifb_create(struct drm_fb_helper *helper,
 	info->fix.smem_len = size;
 	info->fix.smem_start = (unsigned long)efbdev->efb.obj->vmapping;
 
-	info->flags = FBINFO_DEFAULT;
-
 	efbdev->fb_ops = &evdifb_ops;
 	info->fbops = efbdev->fb_ops;
 

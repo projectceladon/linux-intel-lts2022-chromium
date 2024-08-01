@@ -122,6 +122,12 @@
 
 #include <trace/events/sock.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/cros_net.h>
+EXPORT_TRACEPOINT_SYMBOL(cros_ip6_input_finish_enter);
+EXPORT_TRACEPOINT_SYMBOL(cros_ip6_finish_output2_enter);
+#undef CREATE_TRACE_POINTS
+
 /* The inetsw table contains everything that inet_create needs to
  * build a new socket.
  */
@@ -234,6 +240,9 @@ int inet_listen(struct socket *sock, int backlog)
 	err = 0;
 
 out:
+	// Cros specific tracepoint to accommodate the lack of
+	// arm64 bpf-trampoline in v5.10, v5.15 , v6.1 kernels.
+	trace_cros_inet_listen_exit(sock, backlog, err);
 	release_sock(sk);
 	return err;
 }
@@ -328,6 +337,9 @@ lookup_protocol:
 	if (INET_PROTOSW_REUSE & answer_flags)
 		sk->sk_reuse = SK_CAN_REUSE;
 
+	if (INET_PROTOSW_ICSK & answer_flags)
+		inet_init_csk_locks(sk);
+
 	inet = inet_sk(sk);
 	inet->is_icsk = (INET_PROTOSW_ICSK & answer_flags) != 0;
 
@@ -409,6 +421,7 @@ out_rcu_unlock:
 int inet_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
+	trace_cros_inet_release_enter(sock);
 
 	if (sk) {
 		long timeout;
@@ -716,6 +729,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 	sock->state = SS_CONNECTED;
 	err = 0;
 out:
+	trace_cros_inet_stream_connect_exit(sock, uaddr, addr_len, flags, is_sendmsg, err);
 	return err;
 
 sock_error:
@@ -769,6 +783,7 @@ int inet_accept(struct socket *sock, struct socket *newsock, int flags,
 	err = 0;
 	release_sock(sk2);
 do_err:
+	trace_cros_inet_accept_exit(sock, newsock, flags, kern, err);
 	return err;
 }
 EXPORT_SYMBOL(inet_accept);
@@ -828,6 +843,8 @@ int inet_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 {
 	struct sock *sk = sock->sk;
 
+	trace_cros_inet_sendmsg_enter(sock, msg, size);
+
 	if (unlikely(inet_send_prepare(sk)))
 		return -EAGAIN;
 
@@ -839,6 +856,7 @@ EXPORT_SYMBOL(inet_sendmsg);
 ssize_t inet_sendpage(struct socket *sock, struct page *page, int offset,
 		      size_t size, int flags)
 {
+	ssize_t rv;
 	struct sock *sk = sock->sk;
 	const struct proto *prot;
 
@@ -847,9 +865,14 @@ ssize_t inet_sendpage(struct socket *sock, struct page *page, int offset,
 
 	/* IPV6_ADDRFORM can change sk->sk_prot under us. */
 	prot = READ_ONCE(sk->sk_prot);
-	if (prot->sendpage)
-		return prot->sendpage(sk, page, offset, size, flags);
-	return sock_no_sendpage(sock, page, offset, size, flags);
+	if (prot->sendpage) {
+		rv = prot->sendpage(sk, page, offset, size, flags);
+		trace_cros_inet_sendpage_exit(sock, page, offset, size, flags, rv);
+		return rv;
+	}
+	rv = sock_no_sendpage(sock, page, offset, size, flags);
+	trace_cros_inet_sendpage_exit(sock, page, offset, size, flags, rv);
+	return rv;
 }
 EXPORT_SYMBOL(inet_sendpage);
 
@@ -869,6 +892,7 @@ int inet_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 			      sk, msg, size, flags, &addr_len);
 	if (err >= 0)
 		msg->msg_namelen = addr_len;
+	trace_cros_inet_recvmsg_exit(sock, msg, size, flags, err);
 	return err;
 }
 EXPORT_SYMBOL(inet_recvmsg);
@@ -1614,10 +1638,12 @@ EXPORT_SYMBOL(inet_current_timestamp);
 
 int inet_recv_error(struct sock *sk, struct msghdr *msg, int len, int *addr_len)
 {
-	if (sk->sk_family == AF_INET)
+	unsigned int family = READ_ONCE(sk->sk_family);
+
+	if (family == AF_INET)
 		return ip_recv_error(sk, msg, len, addr_len);
 #if IS_ENABLED(CONFIG_IPV6)
-	if (sk->sk_family == AF_INET6)
+	if (family == AF_INET6)
 		return pingv6_ops.ipv6_recv_error(sk, msg, len, addr_len);
 #endif
 	return -EINVAL;
