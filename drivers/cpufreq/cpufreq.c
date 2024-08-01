@@ -1693,6 +1693,7 @@ static void cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif)
 	 */
 	if (cpufreq_thermal_control_enabled(cpufreq_driver)) {
 		cpufreq_cooling_unregister(policy->cdev);
+		trace_android_vh_thermal_unregister(policy);
 		policy->cdev = NULL;
 	}
 

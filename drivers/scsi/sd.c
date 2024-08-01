@@ -3745,6 +3745,8 @@ static int sd_resume(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
 
+	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
+
 	if (opal_unlock_from_suspend(sdkp->opal_dev)) {
 		sd_printk(KERN_NOTICE, sdkp, "OPAL unlock failed\n");
 		return -EIO;
@@ -3753,7 +3755,7 @@ static int sd_resume(struct device *dev)
 	return 0;
 }
 
-static int sd_resume_common(struct device *dev, bool runtime)
+static int sd_resume_common(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
 	int ret;
@@ -3761,13 +3763,11 @@ static int sd_resume_common(struct device *dev, bool runtime)
 	if (!sdkp)	/* E.g.: runtime resume at the start of sd_probe() */
 		return 0;
 
-	if (!sdkp->device->manage_start_stop)
-		return 0;
-
 	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 	ret = sd_start_stop_device(sdkp, 1);
+
 	if (!ret)
-		opal_unlock_from_suspend(sdkp->opal_dev);
+		sd_resume(dev);
 
 	return ret;
 }
@@ -3777,7 +3777,7 @@ static int sd_resume_system(struct device *dev)
 	if (pm_runtime_suspended(dev))
 		return 0;
 
-	return sd_resume_common(dev, false);
+	return sd_resume_common(dev);
 }
 
 static int sd_resume_runtime(struct device *dev)
@@ -3804,7 +3804,7 @@ static int sd_resume_runtime(struct device *dev)
 				  "Failed to clear sense data\n");
 	}
 
-	return sd_resume_common(dev, true);
+	return sd_resume_common(dev);
 }
 
 /**
