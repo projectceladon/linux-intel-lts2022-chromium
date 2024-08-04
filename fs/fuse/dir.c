@@ -582,6 +582,19 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name
 				   attr_version);
 	}
 
+	err = -EIO;
+	if (!outarg->nodeid)
+		goto out_put_forget;
+	if (fuse_invalid_attr(&outarg->attr))
+		goto out_put_forget;
+	if (outarg->nodeid == FUSE_ROOT_ID && outarg->generation != 0) {
+		pr_warn_once("root generation should be zero\n");
+		outarg->generation = 0;
+	}
+
+	*inode = fuse_iget(sb, outarg->nodeid, outarg->generation,
+			   &outarg->attr, entry_attr_timeout(outarg),
+			   attr_version);
 	err = -ENOMEM;
 	if (!*inode && outarg->nodeid) {
 		fuse_queue_forget(fm->fc, forget, outarg->nodeid, 1);

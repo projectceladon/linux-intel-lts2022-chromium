@@ -153,14 +153,15 @@
 
 static bool __is_ras_eeprom_supported(struct amdgpu_device *adev)
 {
-	switch (adev->ip_versions[MP1_HWIP][0]) {
+	switch (amdgpu_ip_version(adev, MP1_HWIP, 0)) {
 	case IP_VERSION(11, 0, 2): /* VEGA20 and ARCTURUS */
 	case IP_VERSION(11, 0, 7): /* Sienna cichlid */
 	case IP_VERSION(13, 0, 0):
 	case IP_VERSION(13, 0, 2): /* Aldebaran */
-	case IP_VERSION(13, 0, 6):
 	case IP_VERSION(13, 0, 10):
 		return true;
+	case IP_VERSION(13, 0, 6):
+		return (adev->gmc.is_app_apu) ? false : true;
 	default:
 		return false;
 	}
@@ -190,14 +191,14 @@ static bool __get_eeprom_i2c_addr(struct amdgpu_device *adev,
 		return true;
 	}
 
-	switch (adev->ip_versions[MP1_HWIP][0]) {
+	switch (amdgpu_ip_version(adev, MP1_HWIP, 0)) {
 	case IP_VERSION(11, 0, 2):
 		/* VEGA20 and ARCTURUS */
 		if (adev->asic_type == CHIP_VEGA20)
 			control->i2c_address = EEPROM_I2C_MADDR_0;
-		else if (strnstr(atom_ctx->vbios_version,
+		else if (strnstr(atom_ctx->vbios_pn,
 				 "D342",
-				 sizeof(atom_ctx->vbios_version)))
+				 sizeof(atom_ctx->vbios_pn)))
 			control->i2c_address = EEPROM_I2C_MADDR_0;
 		else
 			control->i2c_address = EEPROM_I2C_MADDR_4;
@@ -206,8 +207,8 @@ static bool __get_eeprom_i2c_addr(struct amdgpu_device *adev,
 		control->i2c_address = EEPROM_I2C_MADDR_0;
 		return true;
 	case IP_VERSION(13, 0, 2):
-		if (strnstr(atom_ctx->vbios_version, "D673",
-			    sizeof(atom_ctx->vbios_version)))
+		if (strnstr(atom_ctx->vbios_pn, "D673",
+			    sizeof(atom_ctx->vbios_pn)))
 			control->i2c_address = EEPROM_I2C_MADDR_4;
 		else
 			control->i2c_address = EEPROM_I2C_MADDR_0;
