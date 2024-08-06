@@ -588,7 +588,7 @@ bool dev_pm_skip_resume(struct device *dev)
  * The driver of @dev will not receive interrupts while this function is being
  * executed.
  */
-static void device_resume_noirq(struct device *dev, pm_message_t state, bool async)
+static void __device_resume_noirq(struct device *dev, pm_message_t state, bool async)
 {
 	pm_callback_t callback = NULL;
 	const char *info = NULL;
@@ -698,7 +698,7 @@ static void async_resume_noirq(void *data, async_cookie_t cookie)
 {
 	struct device *dev = data;
 
-	device_resume_noirq(dev, pm_transition, true);
+	__device_resume_noirq(dev, pm_transition, true);
 	put_device(dev);
 }
 
@@ -735,7 +735,7 @@ static void dpm_noirq_resume_devices(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
-			device_resume_noirq(dev, state, false);
+			__device_resume_noirq(dev, state, false);
 
 			put_device(dev);
 
@@ -771,7 +771,7 @@ void dpm_resume_noirq(pm_message_t state)
  *
  * Runtime PM is disabled for @dev while this function is being executed.
  */
-static void device_resume_early(struct device *dev, pm_message_t state, bool async)
+static void __device_resume_early(struct device *dev, pm_message_t state, bool async)
 {
 	pm_callback_t callback = NULL;
 	const char *info = NULL;
@@ -837,7 +837,7 @@ static void async_resume_early(void *data, async_cookie_t cookie)
 {
 	struct device *dev = data;
 
-	device_resume_early(dev, pm_transition, true);
+	__device_resume_early(dev, pm_transition, true);
 	put_device(dev);
 }
 
@@ -878,7 +878,7 @@ void dpm_resume_early(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
-			device_resume_early(dev, state, false);
+			__device_resume_early(dev, state, false);
 
 			put_device(dev);
 
@@ -908,7 +908,7 @@ EXPORT_SYMBOL_GPL(dpm_resume_start);
  * @state: PM transition of the system being carried out.
  * @async: If true, the device is being resumed asynchronously.
  */
-static void device_resume(struct device *dev, pm_message_t state, bool async)
+static void __device_resume(struct device *dev, pm_message_t state, bool async)
 {
 	pm_callback_t callback = NULL;
 	const char *info = NULL;
@@ -1002,7 +1002,7 @@ static void async_resume(void *data, async_cookie_t cookie)
 {
 	struct device *dev = data;
 
-	device_resume(dev, pm_transition, true);
+	__device_resume(dev, pm_transition, true);
 	put_device(dev);
 }
 
@@ -1048,7 +1048,7 @@ void dpm_resume(pm_message_t state)
 		if (!dev->power.async_in_progress) {
 			mutex_unlock(&dpm_list_mtx);
 
-			device_resume(dev, state, false);
+			__device_resume(dev, state, false);
 
 			mutex_lock(&dpm_list_mtx);
 		}

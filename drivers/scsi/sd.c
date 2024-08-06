@@ -71,6 +71,7 @@
 #include "sd.h"
 #include "scsi_priv.h"
 #include "scsi_logging.h"
+#include <scsi/scsi_device.h>
 
 MODULE_AUTHOR("Eric Youngdale");
 MODULE_DESCRIPTION("SCSI disk (sd) driver");
@@ -3232,6 +3233,10 @@ static void sd_read_block_zero(struct scsi_disk *sdkp)
 {
 	unsigned int buf_len = sdkp->device->sector_size;
 	char *buffer, cmd[10] = { };
+    struct scsi_sense_hdr sshdr;
+    const struct scsi_exec_args exec_args = {
+            .sshdr = &sshdr,
+    };
 
 	buffer = kmalloc(buf_len, GFP_KERNEL);
 	if (!buffer)
@@ -3241,8 +3246,11 @@ static void sd_read_block_zero(struct scsi_disk *sdkp)
 	put_unaligned_be32(0, &cmd[2]); /* Logical block address 0 */
 	put_unaligned_be16(1, &cmd[7]);	/* Transfer 1 logical block */
 
-	scsi_execute_req(sdkp->device, cmd, DMA_FROM_DEVICE, buffer, buf_len,
-			 NULL, SD_TIMEOUT, sdkp->max_retries, NULL);
+	/*scsi_execute_req(sdkp->device, cmd, DMA_FROM_DEVICE, buffer, buf_len,
+			 NULL, SD_TIMEOUT, sdkp->max_retries, NULL);*/
+    scsi_execute_cmd(sdkp->device, cmd, REQ_OP_DRV_IN,
+                                    buffer, RC16_LEN, SD_TIMEOUT,
+                                    sdkp->max_retries, &exec_args);
 	kfree(buffer);
 }
 
@@ -3769,7 +3777,7 @@ static int sd_resume(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
 
-	if (sdkp->device->no_start_on_resume)
+	if (sdkp->device->manage_start_stop)
 		sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 
 	if (opal_unlock_from_suspend(sdkp->opal_dev)) {
@@ -3788,17 +3796,11 @@ static int sd_resume_common(struct device *dev, bool runtime)
 	if (!sdkp)	/* E.g.: runtime resume at the start of sd_probe() */
 		return 0;
 
-	if (!sdkp->device->manage_start_stop)
-		return 0;
-
-	if (!sdkp->device->no_start_on_resume) {
-		sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
-		ret = sd_start_stop_device(sdkp, 1);
-	}
+	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
+	ret = sd_start_stop_device(sdkp, 1);
 
 	if (!ret) {
 		sd_resume(dev);
-		sdkp->suspended = false;
 	}
 
 	return ret;

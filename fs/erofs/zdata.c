@@ -819,7 +819,6 @@ static int z_erofs_register_pcluster(struct z_erofs_decompress_frontend *fe)
 
 	if (ztailpacking) {
 		pcl->obj.index = 0;	/* which indicates ztailpacking */
-		pcl->tailpacking_size = map->m_plen;
 	} else {
 		pcl->obj.index = erofs_blknr(sb, map->m_pa);
 
@@ -979,6 +978,7 @@ static int z_erofs_do_read_page(struct z_erofs_decompress_frontend *fe,
 	struct erofs_map_blocks *const map = &fe->map;
 	const loff_t offset = page_offset(page);
 	const unsigned int bs = i_blocksize(inode);
+	struct super_block *sb = fe->inode->i_sb;
 	bool tight = true, exclusive;
 	unsigned int cur, end, len, split;
 	int err = 0;
@@ -1002,15 +1002,11 @@ repeat:
 	/* bump split parts first to avoid several separate cases */
 	++split;
 
-	err = z_erofs_collector_begin(fe);
-	if (err)
-		goto out;
-
 	if (z_erofs_is_inline_pcluster(fe->pcl)) {
 		void *mp;
 
 		mp = erofs_read_metabuf(&fe->map.buf, inode->i_sb,
-					erofs_blknr(map->m_pa), EROFS_NO_KMAP);
+					erofs_blknr(sb, map->m_pa), EROFS_NO_KMAP);
 		if (IS_ERR(mp)) {
 			err = PTR_ERR(mp);
 			erofs_err(inode->i_sb,
@@ -1024,7 +1020,7 @@ repeat:
 		fe->mode = Z_EROFS_PCLUSTER_FOLLOWED_NOINPLACE;
 	} else {
 		/* bind cache first when cached decompression is preferred */
-		z_erofs_bind_cache(fe, pagepool);
+		z_erofs_bind_cache(fe);
 	}
 hitted:
 	/*
