@@ -8921,6 +8921,28 @@ out:
 	if (ret)
 		dev_err(hba->dev, "%s failed: %d\n", __func__, ret);
 }
+static enum scsi_timeout_action ufshcd_eh_timed_out(struct scsi_cmnd *scmd)
+{
+	struct ufs_hba *hba = shost_priv(scmd->device->host);
+ 
+ 	if (!hba->system_suspending) {
+ 		/* Activate the error handler in the SCSI core. */
+ 		return SCSI_EH_NOT_HANDLED;
+ 	}
+ 
+ 	/*
+ 	 * If we get here we know that no TMFs are outstanding and also that
+ 	 * the only pending command is a START STOP UNIT command. Handle the
+ 	 * timeout of that command directly to prevent a deadlock between
+ 	 * ufshcd_set_dev_pwr_mode() and ufshcd_err_handler().
+ 	 */
+ 	ufshcd_link_recovery(hba);
+ 	dev_info(hba->dev, "%s() finished; outstanding_tasks = %#lx.\n",
+ 		 __func__, hba->outstanding_tasks);
+ 
+ 	return hba->outstanding_reqs ? SCSI_EH_RESET_TIMER : SCSI_EH_DONE;
+}
+
 
 static const struct attribute_group *ufshcd_driver_groups[] = {
 	&ufs_sysfs_unit_descriptor_group,

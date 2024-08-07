@@ -1541,7 +1541,7 @@ static int cpufreq_online(unsigned int cpu)
 		cpufreq_driver->ready(policy);
 
 	/* Register cpufreq cooling only for a new policy */
-	if (new_policy && cpufreq_thermal_control_enabled(cpufreq_driver))
+	if (new_policy && cpufreq_thermal_control_enabled(cpufreq_driver)){
 		policy->cdev = of_cpufreq_cooling_register(policy);
 		trace_android_vh_thermal_register(policy);
 	}

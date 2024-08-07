@@ -4771,13 +4771,13 @@ struct cfg80211_ops {
 				    struct link_station_parameters *params);
 	int	(*del_link_station)(struct wiphy *wiphy, struct net_device *dev,
 				    struct link_station_del_parameters *params);
+	int     (*set_hw_timestamp)(struct wiphy *wiphy, struct net_device *dev,
+                                    struct cfg80211_set_hw_timestamp *hwts);
 
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
-	int	(*set_hw_timestamp)(struct wiphy *wiphy, struct net_device *dev,
-				    struct cfg80211_set_hw_timestamp *hwts);
 };
 
 /*
@@ -5599,12 +5599,9 @@ struct wiphy {
 	u8 mbssid_max_interfaces;
 	u8 ema_max_profile_periodicity;
 	u16 max_num_akm_suites;
-
-<<<<<<< HEAD
-	ANDROID_KABI_RESERVE(1);
-=======
 	u16 hw_timestamp_max_peers;
->>>>>>> 2ef2eab71986bda9816d684cd0f4702090442f88
+
+	ANDROID_KABI_RESERVE(1);
 
 	char priv[] __aligned(NETDEV_ALIGN);
 };

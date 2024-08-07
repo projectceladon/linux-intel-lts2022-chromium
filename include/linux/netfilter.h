@@ -466,10 +466,10 @@ struct nf_ct_hook {
 	bool (*get_tuple_skb)(struct nf_conntrack_tuple *,
 			      const struct sk_buff *);
 	void (*attach)(struct sk_buff *nskb, const struct sk_buff *skb);
-
-	ANDROID_KABI_RESERVE(1);
 	void (*set_closing)(struct nf_conntrack *nfct);
 	int (*confirm)(struct sk_buff *skb);
+
+	ANDROID_KABI_RESERVE(1);
 };
 extern const struct nf_ct_hook __rcu *nf_ct_hook;
 
