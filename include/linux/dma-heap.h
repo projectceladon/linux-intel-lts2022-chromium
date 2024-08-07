@@ -10,6 +10,7 @@
 #define _DMA_HEAPS_H
 
 #include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/types.h>
 
 struct dma_heap;
@@ -121,4 +122,13 @@ void dma_heap_buffer_free(struct dma_buf *);
 int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
 			    unsigned int fd_flags,
 			    unsigned int heap_flags);
+#ifdef CONFIG_DMABUF_HEAPS_CMA
+/**
+ * dma_heap_add_cma - adds a device CMA heap to dmabuf heaps
+ * @dev:	device with a CMA heap to register
+ */
+int dma_heap_add_cma(struct device *dev);
+
+#endif /* CONFIG_DMABUF_HEAPS_CMA */
+
 #endif /* _DMA_HEAPS_H */
