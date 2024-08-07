@@ -10,6 +10,7 @@
 #define _DMA_HEAPS_H
 
 #include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/types.h>
 
 struct dma_heap;
@@ -76,49 +77,13 @@ const char *dma_heap_get_name(struct dma_heap *heap);
  */
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info);
 
+#ifdef CONFIG_DMABUF_HEAPS_CMA
 /**
- * dma_heap_put - drops a reference to a dmabuf heaps, potentially freeing it
- * @heap:		heap pointer
+ * dma_heap_add_cma - adds a device CMA heap to dmabuf heaps
+ * @dev:	device with a CMA heap to register
  */
-void dma_heap_put(struct dma_heap *heap);
+int dma_heap_add_cma(struct device *dev);
 
-/**
- * dma_heap_find - Returns the registered dma_heap with the specified name
- * @name: Name of the heap to find
- *
- * NOTE: dma_heaps returned from this function MUST be released
- * using dma_heap_put() when the user is done.
- */
-struct dma_heap *dma_heap_find(const char *name);
+#endif /* CONFIG_DMABUF_HEAPS_CMA */
 
-/**
- * dma_heap_buffer_alloc - Allocate dma-buf from a dma_heap
- * @heap:	dma_heap to allocate from
- * @len:	size to allocate
- * @fd_flags:	flags to set on returned dma-buf fd
- * @heap_flags:	flags to pass to the dma heap
- *
- * This is for internal dma-buf allocations only.
- */
-struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
-				      unsigned int fd_flags,
-				      unsigned int heap_flags);
-
-/** dma_heap_buffer_free - Free dma_buf allocated by dma_heap_buffer_alloc
- * @dma_buf:	dma_buf to free
- *
- * This is really only a simple wrapper to dma_buf_put()
- */
-void dma_heap_buffer_free(struct dma_buf *);
-
-/**
- * dma_heap_bufferfd_alloc - Allocate dma-buf fd from a dma_heap
- * @heap:	dma_heap to allocate from
- * @len:	size to allocate
- * @fd_flags:	flags to set on returned dma-buf fd
- * @heap_flags:	flags to pass to the dma heap
- */
-int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
-			    unsigned int fd_flags,
-			    unsigned int heap_flags);
 #endif /* _DMA_HEAPS_H */

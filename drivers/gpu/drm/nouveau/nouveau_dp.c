@@ -64,7 +64,7 @@ nouveau_dp_probe_dpcd(struct nouveau_connector *nv_connector,
 	if (nouveau_mst) {
 		mstm = outp->dp.mstm;
 		if (mstm)
-			mstm->can_mst = drm_dp_read_mst_cap(aux, dpcd);
+			mstm->can_mst = drm_dp_read_mst_cap(aux, dpcd) == DRM_DP_MST;
 	}
 
 	if (nouveau_dp_has_sink_count(connector, outp)) {
@@ -267,8 +267,7 @@ nouveau_dp_irq(struct work_struct *work)
  *   yet)
  */
 enum drm_mode_status
-nv50_dp_mode_valid(struct drm_connector *connector,
-		   struct nouveau_encoder *outp,
+nv50_dp_mode_valid(struct nouveau_encoder *outp,
 		   const struct drm_display_mode *mode,
 		   unsigned *out_clock)
 {

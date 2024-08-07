@@ -302,6 +302,18 @@ struct drm_i915_gem_object {
 	 */
 	struct i915_address_space *shares_resv_from;
 
+#ifdef CONFIG_PROC_FS
+	/**
+	 * @client: @i915_drm_client which created the object
+	 */
+	struct i915_drm_client *client;
+
+	/**
+	 * @client_link: Link into @i915_drm_client.objects_list
+	 */
+	struct list_head client_link;
+#endif
+
 	union {
 		struct rcu_head rcu;
 		struct llist_node freed;
@@ -719,6 +731,9 @@ struct drm_i915_gem_object {
 		void *gvt_info;
 	};
 };
+
+#define intel_bo_to_drm_bo(bo) (&(bo)->base)
+#define intel_bo_to_i915(bo) to_i915(intel_bo_to_drm_bo(bo)->dev)
 
 static inline struct drm_i915_gem_object *
 to_intel_bo(struct drm_gem_object *gem)

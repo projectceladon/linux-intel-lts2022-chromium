@@ -74,9 +74,7 @@ static struct drm_driver driver = {
 
 	.fops = &evdi_driver_fops,
 
-	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 	.gem_prime_import = drm_gem_prime_import,
-	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.gem_prime_import_sg_table = evdi_prime_import_sg_table,
 
 	.name = DRIVER_NAME,

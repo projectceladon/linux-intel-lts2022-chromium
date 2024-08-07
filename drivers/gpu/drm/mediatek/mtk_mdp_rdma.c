@@ -6,8 +6,7 @@
 #include <drm/drm_fourcc.h>
 #include <linux/clk.h>
 #include <linux/component.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
@@ -241,6 +240,22 @@ const u32 *mtk_mdp_rdma_get_formats(struct device *dev)
 size_t mtk_mdp_rdma_get_num_formats(struct device *dev)
 {
 	return ARRAY_SIZE(formats);
+}
+
+int mtk_mdp_rdma_power_on(struct device *dev)
+{
+	int ret = pm_runtime_resume_and_get(dev);
+
+	if (ret < 0) {
+		dev_err(dev, "Failed to power on: %d\n", ret);
+		return ret;
+	}
+	return 0;
+}
+
+void mtk_mdp_rdma_power_off(struct device *dev)
+{
+	pm_runtime_put(dev);
 }
 
 int mtk_mdp_rdma_clk_enable(struct device *dev)

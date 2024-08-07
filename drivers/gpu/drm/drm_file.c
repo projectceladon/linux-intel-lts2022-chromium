@@ -410,7 +410,7 @@ int drm_open(struct inode *inode, struct file *filp)
 {
 	struct drm_device *dev;
 	struct drm_minor *minor;
-	int retcode;
+	int retcode = 0;
 	int need_setup = 0;
 
 	minor = drm_minor_acquire(iminor(inode));
@@ -937,7 +937,7 @@ void drm_show_memory_stats(struct drm_printer *p, struct drm_file *file)
 					DRM_GEM_OBJECT_PURGEABLE;
 		}
 
-		if (obj->handle_count > 1) {
+		if (drm_gem_object_is_shared_for_memory_stats(obj)) {
 			status.shared += obj->size;
 		} else {
 			status.private += obj->size;
