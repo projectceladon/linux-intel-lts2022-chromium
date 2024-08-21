@@ -2300,7 +2300,7 @@ int main(int argc, char **argv)
 	LIST_HEAD(dump_lists);
 	struct dump_list *dl, *dl2;
 
-	while ((opt = getopt(argc, argv, "ei:mnT:o:awENd:v:")) != -1) {
+	while ((opt = getopt(argc, argv, "ei:mnT:o:aWwENd:v:")) != -1) {
 		switch (opt) {
 		case 'e':
 			external_module = true;
