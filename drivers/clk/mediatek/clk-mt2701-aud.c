@@ -130,7 +130,7 @@ static int clk_mt2701_aud_probe(struct platform_device *pdev)
 {
 	int r;
 
-	r = mtk_clk_simple_probe(pdev);
+        r = mtk_clk_simple_probe(pdev);
 	if (r) {
 		dev_err(&pdev->dev,
 			"could not register clock provider: %s: %d\n",

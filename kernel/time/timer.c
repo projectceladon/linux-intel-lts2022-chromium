@@ -1105,7 +1105,7 @@ __mod_timer(struct timer_list *timer, unsigned long expires, unsigned int option
 		/*
 		 * We are trying to schedule the timer on the new base.
 		 * However we can't change timer's base while it is running,
-		 * otherwise timer_delete_sync() can't detect that the timer's
+		 * otherwise del_timer_sync() can't detect that the timer's
 		 * handler yet has not finished. This also guarantees that the
 		 * timer is serialized wrt itself.
 		 */
@@ -1523,6 +1523,86 @@ static inline void timer_base_unlock_expiry(struct timer_base *base) { }
 static inline void timer_sync_wait_running(struct timer_base *base) { }
 static inline void del_timer_wait_running(struct timer_list *timer) { }
 #endif
+/**
+ * del_timer_sync - Deactivate a timer and wait for the handler to finish.
+ * @timer:      The timer to be deactivated
+ *
+ * Synchronization rules: Callers must prevent restarting of the timer,
+ * otherwise this function is meaningless. It must not be called from
+ * interrupt contexts unless the timer is an irqsafe one. The caller must
+ * not hold locks which would prevent completion of the timer's callback
+ * function. The timer's handler must not call add_timer_on(). Upon exit
+ * the timer is not queued and the handler is not running on any CPU.
+ *
+ * For !irqsafe timers, the caller must not hold locks that are held in
+ * interrupt context. Even if the lock has nothing to do with the timer in
+ * question.  Here's why::
+ *
+ *    CPU0                             CPU1
+ *    ----                             ----
+ *                                     <SOFTIRQ>
+ *                                       call_timer_fn();
+ *                                       base->running_timer = mytimer;
+ *    spin_lock_irq(somelock);
+ *                                     <IRQ>
+ *                                        spin_lock(somelock);
+ *    del_timer_sync(mytimer);
+ *    while (base->running_timer == mytimer);
+ *
+ * Now del_timer_sync() will never return and never release somelock.
+ * The interrupt on the other CPU is waiting to grab somelock but it has
+ * interrupted the softirq that CPU0 is waiting to finish.
+ *
+ * This function cannot guarantee that the timer is not rearmed again by
+ * some concurrent or preempting code, right after it dropped the base
+ * lock. If there is the possibility of a concurrent rearm then the return
+ * value of the function is meaningless.
+ *
+ * Return:
+ * * %0 - The timer was not pending
+ * * %1 - The timer was pending and deactivated
+ */
+int del_timer_sync(struct timer_list *timer)
+{
+        int ret;
+
+#ifdef CONFIG_LOCKDEP
+        unsigned long flags;
+
+        /*
+         * If lockdep gives a backtrace here, please reference
+         * the synchronization rules above.
+         */
+        local_irq_save(flags);
+        lock_map_acquire(&timer->lockdep_map);
+        lock_map_release(&timer->lockdep_map);
+        local_irq_restore(flags);
+#endif
+        /*
+         * don't use it in hardirq context, because it
+         * could lead to deadlock.
+         */
+        WARN_ON(in_irq() && !(timer->flags & TIMER_IRQSAFE));
+
+        /*
+         * Must be able to sleep on PREEMPT_RT because of the slowpath in
+         * del_timer_wait_running().
+         */
+        if (IS_ENABLED(CONFIG_PREEMPT_RT) && !(timer->flags & TIMER_IRQSAFE))
+                lockdep_assert_preemption_enabled();
+
+        do {
+                ret = try_to_del_timer_sync(timer);
+
+                if (unlikely(ret < 0)) {
+                        del_timer_wait_running(timer);
+                        cpu_relax();
+                }
+        } while (ret < 0);
+
+        return ret;
+}
+EXPORT_SYMBOL(del_timer_sync);
 
 /**
  * __timer_delete_sync - Internal function: Deactivate a timer and wait
@@ -1697,8 +1777,8 @@ static void call_timer_fn(struct timer_list *timer,
 #endif
 	/*
 	 * Couple the lock chain with the lock chain at
-	 * timer_delete_sync() by acquiring the lock_map around the fn()
-	 * call here and in timer_delete_sync().
+	 * del_timer_sync() by acquiring the lock_map around the fn()
+	 * call here and in del_timer_sync().
 	 */
 	lock_map_acquire(&lockdep_map);
 
