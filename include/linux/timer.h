@@ -191,6 +191,7 @@ extern int timer_delete(struct timer_list *timer);
 extern int timer_shutdown_sync(struct timer_list *timer);
 extern int timer_shutdown(struct timer_list *timer);
 
+extern int del_timer(struct timer_list *timer);
 extern int del_timer_sync(struct timer_list *timer);
 
 extern void init_timers(void);

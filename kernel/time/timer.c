@@ -1304,6 +1304,35 @@ out_unlock:
 EXPORT_SYMBOL_GPL(add_timer_on);
 
 /**
+ * del_timer - Deactivate a timer.
+ * @timer:	The timer to be deactivated
+ *
+ * The function only deactivates a pending timer, but contrary to
+ * del_timer_sync() it does not take into account whether the timer's
+ * callback function is concurrently executed on a different CPU or not.
+ * It neither prevents rearming of the timer. If @timer can be rearmed
+ * concurrently then the return value of this function is meaningless.
+ *
+ * Return:
+ * * %0 - The timer was not pending
+ * * %1 - The timer was pending and deactivated
+ */
+int del_timer(struct timer_list *timer)
+{
+	struct timer_base *base;
+	unsigned long flags;
+	int ret = 0;
+	debug_assert_init(timer);
+	if (timer_pending(timer)) {
+		base = lock_timer_base(timer, &flags);
+		ret = detach_if_pending(timer, base, true);
+		raw_spin_unlock_irqrestore(&base->lock, flags);
+	}
+	return ret;
+}
+EXPORT_SYMBOL(del_timer);
+
+/**
  * __timer_delete - Internal function: Deactivate a timer
  * @timer:	The timer to be deactivated
  * @shutdown:	If true, this indicates that the timer is about to be
