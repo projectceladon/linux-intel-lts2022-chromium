@@ -1499,15 +1499,14 @@ static void hci_cmd_timeout(struct work_struct *work)
 	 */
 	if (!(hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
 	      test_bit(HCI_UP, &hdev->flags))) {
-		if (hdev->req_skb) {
-			u16 opcode = hci_skb_opcode(hdev->req_skb);
+                if (hdev->sent_cmd) {
+                        struct hci_command_hdr *sent = (void *) hdev->sent_cmd->data;
+                        u16 opcode = __le16_to_cpu(sent->opcode);
 
-			bt_dev_err(hdev, "command 0x%4.4x tx timeout", opcode);
-
-			hci_cmd_sync_cancel_sync(hdev, ETIMEDOUT);
-		} else {
-			bt_dev_err(hdev, "command tx timeout");
-		}
+                        bt_dev_err(hdev, "command 0x%4.4x tx timeout", opcode);
+                } else {
+                        bt_dev_err(hdev, "command tx timeout");
+                }
 
 		if (hdev->cmd_timeout)
 			hdev->cmd_timeout(hdev);

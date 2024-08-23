@@ -193,19 +193,6 @@ extern int timer_shutdown_sync(struct timer_list *timer);
 extern int timer_shutdown(struct timer_list *timer);
 
 /**
- * del_timer_sync - Delete a pending timer and wait for a running callback
- * @timer:	The timer to be deleted
- *
- * See timer_delete_sync() for detailed explanation.
- *
- * Do not use in new code. Use timer_delete_sync() instead.
- */
-static inline int del_timer_sync(struct timer_list *timer)
-{
-	return timer_delete_sync(timer);
-}
-
-/**
  * del_timer - Delete a pending timer
  * @timer:	The timer to be deleted
  *
